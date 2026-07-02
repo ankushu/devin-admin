@@ -1,0 +1,30 @@
+{
+  "name": "devin-admin",
+  "version": "0.1.0",
+  "description": "Devin Enterprise admin CLI",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli/index.ts",
+    "test": "vitest run",
+    "lint": "tsc --noEmit"
+  },
+  "bin": {
+    "devin-admin": "./dist/cli/index.js"
+  },
+  "dependencies": {
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5",
+    "vitest": "^2.0.0"
+  }
+}
