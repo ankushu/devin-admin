@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { buildContainer } from '../../container.js';
-import { renderKV, renderJson } from '../../utils/output.js';
+import { renderKV, renderJson, renderTable } from '../../utils/output.js';
 
 export function membershipCommand(): Command {
   const cmd = new Command('membership').description('Manage user org memberships');
@@ -41,6 +41,29 @@ export function membershipCommand(): Command {
           console.log(`    ${ra.role.role_name}`);
         }
       }
+    });
+
+  cmd
+    .command('list-users')
+    .description('List users in an organization')
+    .requiredOption('--org <org>', 'organization name or org_id')
+    .action(async (opts, thisCmd) => {
+      const ro = rootOpts(thisCmd);
+      const { membershipService } = buildContainer();
+      const users = await membershipService.listOrgUsers(opts.org as string);
+      if (ro.json) return renderJson(users);
+      renderTable(
+        users.map((u) => ({
+          user_id: u.user_id,
+          email: u.email,
+          name: u.name,
+          roles: (u.role_assignments ?? [])
+            .filter((r) => r.role.role_type === 'org')
+            .map((r) => r.role.role_name)
+            .join(', '),
+        })),
+        ['user_id', 'email', 'name', 'roles']
+      );
     });
 
   cmd

@@ -22,6 +22,7 @@ const USER: User = {
 function makeMembersApi(user = USER): MembersApi {
   return {
     listEnterpriseMembers: vi.fn().mockResolvedValue([user]),
+    listOrgMembers: vi.fn().mockResolvedValue([user]),
     addToOrgs: vi.fn().mockResolvedValue(undefined),
     removeFromOrgs: vi.fn().mockResolvedValue(undefined),
   } as unknown as MembersApi;
@@ -55,6 +56,14 @@ describe('MembershipService', () => {
     api = makeMembersApi();
     acuLimitService = makeAcuLimitService();
     svc = new MembershipService(api, makeRegistry(), makeUserResolver(), acuLimitService);
+  });
+
+  describe('listOrgUsers', () => {
+    it('resolves org name before listing org members', async () => {
+      const users = await svc.listOrgUsers('Target');
+      expect(api.listOrgMembers).toHaveBeenCalledWith('org-target');
+      expect(users).toEqual([USER]);
+    });
   });
 
   describe('assignOrg', () => {

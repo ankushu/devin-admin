@@ -27,6 +27,11 @@ export class MembershipService {
     return user;
   }
 
+  async listOrgUsers(orgNameOrId: string): Promise<import('../models/types.js').User[]> {
+    const org = await this.orgRegistry.resolve(orgNameOrId);
+    return this.membersApi.listOrgMembers(org.org_id);
+  }
+
   async assignOrg(
     emailOrId: string,
     orgNameOrId: string,
