@@ -7,7 +7,7 @@ import type { AcuLimitService } from '../src/services/AcuLimitService.js';
 import type { User } from '../src/models/types.js';
 
 const TARGET_ORG = { org_id: 'org-target', name: 'Target', created_at: 0, updated_at: 0, max_session_acu_limit: null, max_cycle_acu_limit: null };
-const PROTECTED_ORG = { org_id: 'org-servicenow', name: 'Service Now', created_at: 0, updated_at: 0, max_session_acu_limit: null, max_cycle_acu_limit: null };
+const PROTECTED_ORG = { org_id: 'org-protected', name: 'Service Now', created_at: 0, updated_at: 0, max_session_acu_limit: null, max_cycle_acu_limit: null };
 const OTHER_ORG_ID = 'org-other';
 
 const USER: User = {
@@ -142,7 +142,7 @@ describe('MembershipService', () => {
       expect(acuLimitService.setBillingOrg).toHaveBeenCalledWith('user-1', 'org-target', true);
     });
 
-    it('retains membership in the protected "Service Now" org when moving to a different target', async () => {
+    it('retains membership in the protected "Protected" org when moving to a different target', async () => {
       const userInProtectedOrg: User = {
         user_id: 'user-1',
         email: 'alice@example.com',

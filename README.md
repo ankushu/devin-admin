@@ -14,7 +14,7 @@ Copy `.env.example` to `.env` and fill in your token:
 
 ```
 DEVIN_API_TOKEN=<your token>
-DEVIN_API_BASE_URL=https://servicenow.devinenterprise.com/api
+DEVIN_API_BASE_URL=https://api.devin.com/
 ORG_CACHE_PATH=./data/orgs.json
 ```
 

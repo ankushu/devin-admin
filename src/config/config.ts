@@ -5,7 +5,7 @@ config();
 
 const ConfigSchema = z.object({
   DEVIN_API_TOKEN: z.string().min(1, 'DEVIN_API_TOKEN is required'),
-  DEVIN_API_BASE_URL: z.string().url().default('https://servicenow.devinenterprise.com/api'),
+  DEVIN_API_BASE_URL: z.string().url().default('https://api.devin.com/'),
   ORG_CACHE_PATH: z.string().default('./data/orgs.json'),
 });
 
