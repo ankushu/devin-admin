@@ -1,8 +1,68 @@
 import { Command } from 'commander';
 import { buildContainer } from '../../container.js';
+import { renderKV, renderJson } from '../../utils/output.js';
 
 export function membershipCommand(): Command {
   const cmd = new Command('membership').description('Manage user org memberships');
+
+  cmd
+    .command('get-user <user>')
+    .description('Show all details for a user (email or user_id)')
+    .action(async (user: string, _opts, thisCmd) => {
+      const ro = rootOpts(thisCmd);
+      const { membershipService } = buildContainer();
+      const u = await membershipService.getUser(user);
+      if (ro.json) return renderJson(u);
+      renderKV([
+        ['user_id', u.user_id],
+        ['email', u.email],
+        ['name', u.name],
+      ]);
+      const orgRoles = (u.role_assignments ?? []).filter(
+        (r) => r.role.role_type === 'org' && r.org_id
+      );
+      const entRoles = (u.role_assignments ?? []).filter(
+        (r) => r.role.role_type === 'enterprise'
+      );
+      if (orgRoles.length > 0) {
+        const { orgRegistry } = buildContainer();
+        const orgs = await orgRegistry.get().catch(() => []);
+        const nameMap = new Map(orgs.map((o) => [o.org_id, o.name]));
+        console.log('\n  Org memberships:');
+        for (const ra of orgRoles) {
+          const orgName = nameMap.get(ra.org_id!) ?? '';
+          const label = orgName ? `${ra.org_id}  ${orgName}` : ra.org_id!;
+          console.log(`    ${label}  (${ra.role.role_name})`);
+        }
+      }
+      if (entRoles.length > 0) {
+        console.log('\n  Enterprise roles:');
+        for (const ra of entRoles) {
+          console.log(`    ${ra.role.role_name}`);
+        }
+      }
+    });
+
+  cmd
+    .command('set-billing-org <user>')
+    .description('Update the billing org for a user\'s ACU limit')
+    .requiredOption('--billing-org <org>', 'billing org name or org_id')
+    .action(async (user: string, opts, thisCmd) => {
+      const ro = rootOpts(thisCmd);
+      const { acuLimitService } = buildContainer();
+      const result = await acuLimitService.setBillingOrg(
+        user,
+        opts.billingOrg as string,
+        Boolean(ro.dryRun)
+      );
+      if (ro.dryRun) return;
+      if (ro.json) return renderJson(result ?? {});
+      console.log('Updated.');
+      if (result) renderKV([
+        ['local_agent.cycle_acu_limit', result.local_agent?.cycle_acu_limit],
+        ['local_agent.billing_org_id', result.local_agent?.billing_org_id],
+      ]);
+    });
 
   cmd
     .command('assign <user>')

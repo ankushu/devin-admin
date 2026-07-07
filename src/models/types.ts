@@ -56,7 +56,7 @@ export interface SetOrgAcuLimitBody {
 }
 
 export interface SetUserAcuLimitBody {
-  local_agent?: { cycle_acu_limit: number; billing_org_id?: string };
+  local_agent?: { cycle_acu_limit?: number; billing_org_id?: string };
 }
 
 export interface AcusByProduct {

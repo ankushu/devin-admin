@@ -29,10 +29,12 @@ export function buildContainer(): Container {
   const orgRegistry = new OrgRegistry(orgsApi, config.ORG_CACHE_PATH);
   const userResolver = new UserResolver(membersApi);
 
+  const acuLimitService = new AcuLimitService(acuLimitsApi, orgRegistry, userResolver);
+
   return {
     orgRegistry,
-    acuLimitService: new AcuLimitService(acuLimitsApi, orgRegistry, userResolver),
-    membershipService: new MembershipService(membersApi, orgRegistry, userResolver),
+    acuLimitService,
+    membershipService: new MembershipService(membersApi, orgRegistry, userResolver, acuLimitService),
     monitoringService: new MonitoringService(consumptionApi, acuLimitsApi, orgRegistry, userResolver),
   };
 }

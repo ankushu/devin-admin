@@ -74,6 +74,21 @@ export class AcuLimitService {
     return this.acuLimitsApi.setUser(userId, body);
   }
 
+  async setBillingOrg(
+    emailOrId: string,
+    billingOrgNameOrId: string,
+    dryRun = false
+  ): Promise<UserAcuLimitResponse | null> {
+    const userId = await this.userResolver.resolveId(emailOrId);
+    const org = await this.orgRegistry.resolve(billingOrgNameOrId);
+    const body = { local_agent: { billing_org_id: org.org_id } };
+    if (dryRun) {
+      renderDryRun('PATCH', `/v3beta1/enterprise/users/${userId}/consumption/acu-limits`, body);
+      return null;
+    }
+    return this.acuLimitsApi.setUser(userId, body);
+  }
+
   async clearUser(emailOrId: string, dryRun = false): Promise<void> {
     const userId = await this.userResolver.resolveId(emailOrId);
     if (dryRun) {

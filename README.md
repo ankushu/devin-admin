@@ -121,6 +121,21 @@ devin-admin --json monitor user <user_id> --month 2026-06
 
 ---
 
+## Shell completion (zsh)
+
+A static zsh completion script for commands, subcommands, and flags is at `completions/_devin-admin`.
+
+```bash
+fpath=(/path/to/devin-admin/completions $fpath)
+autoload -Uz compinit && compinit
+```
+
+Or copy `completions/_devin-admin` into an existing `fpath` directory (e.g. `~/.zsh/completions/`).
+
+It does not complete `<org>`/`<user>` values (those are free-form) — only command names and flags. Keep it in sync whenever commands, subcommands, or flags change in `src/cli/commands/*.ts`.
+
+---
+
 ## Contributing / development
 
 ```bash
