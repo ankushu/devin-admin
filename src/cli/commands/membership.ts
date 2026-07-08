@@ -1,4 +1,6 @@
 import { Command } from 'commander';
+import { createInterface } from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
 import { buildContainer } from '../../container.js';
 import { renderKV, renderJson, renderTable } from '../../utils/output.js';
 
@@ -103,6 +105,22 @@ export function membershipCommand(): Command {
     });
 
   cmd
+    .command('remove <user>')
+    .description('Remove a user from one organization')
+    .requiredOption('--org <org>', 'organization name or org_id')
+    .action(async (user: string, opts, thisCmd) => {
+      const ro = rootOpts(thisCmd);
+      const { membershipService } = buildContainer();
+      const result = await membershipService.removeOrg(user, opts.org as string, {
+        dryRun: Boolean(ro.dryRun),
+        confirm: confirmYes,
+      });
+      if (!ro.dryRun && result.removed) {
+        console.log(`Removed ${user} from org ${opts.org as string}.`);
+      }
+    });
+
+  cmd
     .command('set-only <user>')
     .description(
       'Set the user\'s org membership to exactly one org (adds target, removes all others).\n' +
@@ -125,4 +143,14 @@ function rootOpts(cmd: Command): Record<string, unknown> {
   let root = cmd;
   while (root.parent) root = root.parent;
   return root.opts() as Record<string, unknown>;
+}
+
+async function confirmYes(message: string): Promise<boolean> {
+  const rl = createInterface({ input, output });
+  try {
+    const answer = (await rl.question(message)).trim().toLowerCase();
+    return answer === 'yes';
+  } finally {
+    rl.close();
+  }
 }

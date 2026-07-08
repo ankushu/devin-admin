@@ -94,6 +94,7 @@ _devin-admin() {
             'list-users:list users in an org'
             'set-billing-org:set a user'"'"'s billing org'
             'assign:add a user to an org'
+            'remove:remove a user from an org'
             'set-only:set exactly one org for a user'
           )
           _arguments -C \
@@ -114,6 +115,9 @@ _devin-admin() {
                   _arguments $_devin_admin_global_flags \
                     '--org=[org]:org' \
                     '--role=[role]:role'
+                  ;;
+                remove)
+                  _arguments $_devin_admin_global_flags '--org=[org]:org'
                   ;;
                 set-only)
                   _arguments $_devin_admin_global_flags '--org=[org]:org'
