@@ -141,7 +141,10 @@ _devin-admin() {
             monitor_args)
               case $words[3] in
                 org|user)
-                  _arguments $_devin_admin_global_flags '--month=[month, YYYY-MM]:month'
+                  _arguments $_devin_admin_global_flags \
+                    '--month=[month, YYYY-MM]:month' \
+                    '--start=[start date, YYYY-MM-DD]:date' \
+                    '--end=[end date, YYYY-MM-DD]:date'
                   ;;
               esac
               ;;
@@ -152,4 +155,6 @@ _devin-admin() {
   esac
 }
 
-_devin-admin "$@"
+if (( $+functions[compdef] )); then
+  compdef _devin-admin devin-admin
+fi
