@@ -1,8 +1,6 @@
-import type { TimeRange } from '../api/ConsumptionApi.js';
-
 // Month "YYYY-MM" → unix timestamps at midnight PST (= 08:00 UTC), matching
 // the Devin API's billing-cycle boundary.
-export function monthToTimeRange(month: string): TimeRange {
+export function monthToTimeRange(month: string): { time_after: number; time_before: number } {
   const match = /^(\d{4})-(\d{2})$/.exec(month);
   if (!match) throw new Error(`Invalid month format "${month}" — expected YYYY-MM`);
 
@@ -23,53 +21,43 @@ export function monthToTimeRange(month: string): TimeRange {
   return { time_after, time_before };
 }
 
-// Date "YYYY-MM-DD" → unix timestamp at midnight PST (= 08:00 UTC).
-export function dateToUnix(dateStr: string): number {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
-  if (!match) throw new Error(`Invalid date format "${dateStr}" — expected YYYY-MM-DD`);
-  return Math.floor(new Date(`${dateStr}T08:00:00Z`).getTime() / 1000);
-}
+export function dateRangeToTimeRange(start: string, end: string): { time_after: number; time_before: number } {
+  const startParts = parseYyyyMmDd(start, 'start');
+  const endParts = parseYyyyMmDd(end, 'end');
 
-/**
- * Resolve a CLI date range from mutually exclusive options.
- * Accepts either `--month YYYY-MM` or both `--start YYYY-MM-DD` and `--end YYYY-MM-DD`.
- * Returns the TimeRange and a human-readable display string.
- */
-export function resolveDateRange(opts: {
-  month?: string;
-  start?: string;
-  end?: string;
-}): { range: TimeRange; display: string } {
-  const hasMonth = opts.month !== undefined;
-  const hasStart = opts.start !== undefined;
-  const hasEnd = opts.end !== undefined;
+  const time_after = toDayUnix(startParts.year, startParts.mon, startParts.day);
 
-  if (hasMonth && (hasStart || hasEnd)) {
-    throw new Error('Use either --month or --start/--end, not both.');
-  }
-  if (!hasMonth && !hasStart && !hasEnd) {
-    throw new Error('Specify a date range: --month <YYYY-MM>  or  --start <YYYY-MM-DD> --end <YYYY-MM-DD>');
-  }
-  if (hasStart !== hasEnd) {
-    throw new Error('--start and --end must be used together.');
-  }
+  const endDate = new Date(Date.UTC(endParts.year, endParts.mon - 1, endParts.day));
+  endDate.setUTCDate(endDate.getUTCDate() + 1);
+  const time_before = toDayUnix(endDate.getUTCFullYear(), endDate.getUTCMonth() + 1, endDate.getUTCDate());
 
-  if (hasMonth) {
-    return { range: monthToTimeRange(opts.month!), display: formatMonth(opts.month!) };
-  }
-
-  // hasStart && hasEnd guaranteed here
-  const time_after = dateToUnix(opts.start!);
-  const time_before = dateToUnix(opts.end!);
-  if (time_before <= time_after) {
-    throw new Error(`--end must be after --start (got ${opts.start} to ${opts.end})`);
-  }
-  return { range: { time_after, time_before }, display: `${opts.start} to ${opts.end}` };
+  if (time_after >= time_before) throw new Error(`Invalid date range: start "${start}" must be <= end "${end}"`);
+  return { time_after, time_before };
 }
 
 function toUnix(year: number, mon: number): number {
   const iso = `${year}-${String(mon).padStart(2, '0')}-01T08:00:00Z`;
   return Math.floor(new Date(iso).getTime() / 1000);
+}
+
+function toDayUnix(year: number, mon: number, day: number): number {
+  const iso = `${year}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}T08:00:00Z`;
+  return Math.floor(new Date(iso).getTime() / 1000);
+}
+
+function parseYyyyMmDd(value: string, label: string): { year: number; mon: number; day: number } {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) throw new Error(`Invalid ${label} date format "${value}" — expected YYYY-MM-DD`);
+  const year = Number(match[1]);
+  const mon = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, mon - 1, day));
+  const valid =
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === mon - 1 &&
+    date.getUTCDate() === day;
+  if (!valid) throw new Error(`Invalid ${label} date value "${value}"`);
+  return { year, mon, day };
 }
 
 export function formatMonth(month: string): string {
