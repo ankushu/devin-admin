@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dateRangeToTimeRange, monthToTimeRange } from '../src/utils/dates.js';
+import { monthToTimeRange, resolveDateRange, dateToUnix } from '../src/utils/dates.js';
 
 describe('monthToTimeRange', () => {
   it('returns unix timestamps at midnight PST (08:00 UTC) for a given month', () => {
@@ -32,25 +32,54 @@ describe('monthToTimeRange', () => {
   });
 });
 
-describe('dateRangeToTimeRange', () => {
-  it('returns inclusive range by using end + 1 day at midnight PST (08:00 UTC)', () => {
-    const { time_after, time_before } = dateRangeToTimeRange('2026-06-01', '2026-06-03');
-    expect(time_after).toBe(Math.floor(new Date('2026-06-01T08:00:00Z').getTime() / 1000));
-    expect(time_before).toBe(Math.floor(new Date('2026-06-04T08:00:00Z').getTime() / 1000));
+describe('dateToUnix', () => {
+  it('converts YYYY-MM-DD to unix at 08:00 UTC', () => {
+    expect(dateToUnix('2026-06-15')).toBe(
+      Math.floor(new Date('2026-06-15T08:00:00Z').getTime() / 1000)
+    );
   });
 
-  it('supports same-day range as one full inclusive day', () => {
-    const { time_after, time_before } = dateRangeToTimeRange('2026-06-15', '2026-06-15');
-    expect(time_after).toBe(Math.floor(new Date('2026-06-15T08:00:00Z').getTime() / 1000));
-    expect(time_before).toBe(Math.floor(new Date('2026-06-16T08:00:00Z').getTime() / 1000));
+  it('throws on invalid format', () => {
+    expect(() => dateToUnix('2026-6-1')).toThrow('YYYY-MM-DD');
+    expect(() => dateToUnix('June 15 2026')).toThrow();
+  });
+});
+
+describe('resolveDateRange', () => {
+  it('returns correct range and display for --month', () => {
+    const { range, display } = resolveDateRange({ month: '2026-06' });
+    expect(range).toEqual(monthToTimeRange('2026-06'));
+    expect(display).toContain('June');
+    expect(display).toContain('2026');
   });
 
-  it('throws when start is after end', () => {
-    expect(() => dateRangeToTimeRange('2026-06-20', '2026-06-10')).toThrow('start');
+  it('returns correct range and display for --start/--end', () => {
+    const { range, display } = resolveDateRange({ start: '2026-06-01', end: '2026-06-30' });
+    expect(range.time_after).toBe(dateToUnix('2026-06-01'));
+    expect(range.time_before).toBe(dateToUnix('2026-06-30'));
+    expect(display).toBe('2026-06-01 to 2026-06-30');
   });
 
-  it('throws on invalid date format', () => {
-    expect(() => dateRangeToTimeRange('2026-6-01', '2026-06-10')).toThrow('YYYY-MM-DD');
-    expect(() => dateRangeToTimeRange('06-01-2026', '2026-06-10')).toThrow('YYYY-MM-DD');
+  it('throws when no option is given', () => {
+    expect(() => resolveDateRange({})).toThrow('date range');
+  });
+
+  it('throws when only --start is given (missing --end)', () => {
+    expect(() => resolveDateRange({ start: '2026-06-01' })).toThrow('--start and --end must be used together');
+  });
+
+  it('throws when only --end is given (missing --start)', () => {
+    expect(() => resolveDateRange({ end: '2026-06-30' })).toThrow('--start and --end must be used together');
+  });
+
+  it('throws when --month and --start are both given', () => {
+    expect(() => resolveDateRange({ month: '2026-06', start: '2026-06-01', end: '2026-06-30' })).toThrow(
+      'either --month or --start/--end'
+    );
+  });
+
+  it('throws when --end is not after --start', () => {
+    expect(() => resolveDateRange({ start: '2026-06-30', end: '2026-06-01' })).toThrow('after --start');
+    expect(() => resolveDateRange({ start: '2026-06-01', end: '2026-06-01' })).toThrow('after --start');
   });
 });
