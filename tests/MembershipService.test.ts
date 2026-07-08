@@ -44,7 +44,10 @@ function makeUserResolver(resolvedId = 'user-1'): UserResolver {
 }
 
 function makeAcuLimitService(): AcuLimitService {
-  return { setBillingOrg: vi.fn().mockResolvedValue(null) } as unknown as AcuLimitService;
+  return {
+    setBillingOrg: vi.fn().mockResolvedValue(null),
+    getUser: vi.fn().mockResolvedValue({ local_agent: { cycle_acu_limit: 100 } }),
+  } as unknown as AcuLimitService;
 }
 
 describe('MembershipService', () => {
@@ -175,6 +178,39 @@ describe('MembershipService', () => {
         user_ids: ['user-1'],
         org_ids: [OTHER_ORG_ID],
       });
+    });
+  });
+
+  describe('removeOrg', () => {
+    it('removes user from exactly one org', async () => {
+      const result = await svc.removeOrg('alice@example.com', 'Target', {
+        confirm: vi.fn().mockResolvedValue(true),
+      });
+      expect(api.removeFromOrgs).toHaveBeenCalledWith('user-1', ['org-target']);
+      expect(result).toEqual({ removed: true });
+    });
+
+    it('does not call API in dry-run mode', async () => {
+      await svc.removeOrg('alice@example.com', 'Target', { dryRun: true });
+      expect(api.removeFromOrgs).not.toHaveBeenCalled();
+    });
+
+    it('asks for confirmation before removing from protected org', async () => {
+      const confirm = vi.fn().mockResolvedValue(false);
+      await svc.removeOrg('alice@example.com', 'Service Now', { confirm });
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(api.removeFromOrgs).not.toHaveBeenCalled();
+    });
+
+    it('asks for confirmation when billing org matches target org', async () => {
+      const getUserSpy = vi
+        .spyOn(acuLimitService, 'getUser')
+        .mockResolvedValue({ local_agent: { cycle_acu_limit: 100, billing_org_id: 'org-target' } });
+      const confirm = vi.fn().mockResolvedValue(false);
+      await svc.removeOrg('alice@example.com', 'Target', { confirm });
+      expect(getUserSpy).toHaveBeenCalledWith('user-1');
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(api.removeFromOrgs).not.toHaveBeenCalled();
     });
   });
 });

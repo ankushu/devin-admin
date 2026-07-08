@@ -88,10 +88,22 @@ devin-admin --dry-run acu set-org "My Org" --local 500
 devin-admin membership assign <user_id> --org <org>
 devin-admin membership assign <user_id> --org <org> --role admin
 
+# Remove a user from an org (with confirmation)
+devin-admin membership remove <user_id> --org <org>
+
 # Set exactly one org for a user (adds target, removes all others)
 # NOTE: see Known Gaps — use --dry-run to preview until gap #1 is resolved
 devin-admin membership set-only <user_id> --org <org>
 devin-admin --dry-run membership set-only <user_id> --org <org>
+
+# Get user details and org memberships
+devin-admin membership get-user <user_id>
+
+# List all users in an org
+devin-admin membership list-users --org <org>
+
+# Update billing org for a user's ACU limit
+devin-admin membership set-billing-org <user_id> --billing-org <org>
 ```
 
 ---
@@ -105,9 +117,16 @@ devin-admin monitor org <org> --month 2026-06
 # Per-user ACU breakdown by product (devin / cascade / terminal / review)
 devin-admin monitor user <user_id> --month 2026-06
 
+# Date range mode (start/end are inclusive), includes daily trend output
+devin-admin monitor org <org> --start 2026-06-01 --end 2026-06-30
+devin-admin monitor user <user_id> --start 2026-06-01 --end 2026-06-30
+
 # Machine-readable output
 devin-admin --json monitor user <user_id> --month 2026-06
 ```
+
+`monitor org` and `monitor user` accept either `--month <YYYY-MM>` or `--start <YYYY-MM-DD> --end <YYYY-MM-DD>`.
+Do not mix both modes. In date range mode, `--start` and `--end` are both required and both inclusive.
 
 ---
 
