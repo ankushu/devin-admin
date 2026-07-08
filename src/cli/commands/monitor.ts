@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { buildContainer } from '../../container.js';
 import { renderKV, renderTable, renderJson } from '../../utils/output.js';
-import { formatMonth } from '../../utils/dates.js';
+import { resolveDateRange } from '../../utils/dates.js';
 import { pctUsed } from '../../services/MonitoringService.js';
 import type { AcusByProduct } from '../../models/types.js';
 
@@ -14,17 +14,20 @@ export function monitorCommand(): Command {
       'Show enterprise monthly consumption vs org ACU limit.\n' +
         '  NOTE: consumption figures are enterprise-wide (no per-org consumption endpoint in the API).'
     )
-    .requiredOption('--month <YYYY-MM>', 'billing month')
+    .option('--month <YYYY-MM>', 'billing month (mutually exclusive with --start/--end)')
+    .option('--start <YYYY-MM-DD>', 'start date (use with --end)')
+    .option('--end <YYYY-MM-DD>', 'end date (use with --start)')
     .action(async (org: string, opts, thisCmd) => {
       const isJson = Boolean(rootOpts(thisCmd).json);
+      const { range, display } = resolveDateRange(opts as { month?: string; start?: string; end?: string });
       const { monitoringService } = buildContainer();
-      const result = await monitoringService.monitorOrg(org, opts.month as string);
+      const result = await monitoringService.monitorOrg(org, opts.month ?? display, range);
 
       if (isJson) return renderJson(result);
 
       const limit = result.cloudLimit ?? result.localLimit;
       console.log(`\nOrg: ${result.orgName} (${result.orgId})`);
-      console.log(`Month: ${formatMonth(result.month)}`);
+      console.log(`Period: ${display}`);
       console.log('\n  (Enterprise-wide consumption — no per-org filter available in API)\n');
       renderKV([
         ['Total ACUs', result.totalAcus],
@@ -41,17 +44,20 @@ export function monitorCommand(): Command {
 
   cmd
     .command('user <user>')
-    .description('Show a user\'s monthly ACU consumption breakdown by product')
-    .requiredOption('--month <YYYY-MM>', 'billing month')
+    .description('Show a user\'s ACU consumption breakdown by product')
+    .option('--month <YYYY-MM>', 'billing month (mutually exclusive with --start/--end)')
+    .option('--start <YYYY-MM-DD>', 'start date (use with --end)')
+    .option('--end <YYYY-MM-DD>', 'end date (use with --start)')
     .action(async (user: string, opts, thisCmd) => {
       const isJson = Boolean(rootOpts(thisCmd).json);
+      const { range, display } = resolveDateRange(opts as { month?: string; start?: string; end?: string });
       const { monitoringService } = buildContainer();
-      const result = await monitoringService.monitorUser(user, opts.month as string);
+      const result = await monitoringService.monitorUser(user, opts.month ?? display, range);
 
       if (isJson) return renderJson(result);
 
       console.log(`\nUser: ${result.userId}`);
-      console.log(`Month: ${formatMonth(result.month)}`);
+      console.log(`Period: ${display}`);
       console.log();
       renderKV([
         ['Total ACUs', result.totalAcus],

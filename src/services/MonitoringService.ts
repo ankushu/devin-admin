@@ -1,4 +1,4 @@
-import type { ConsumptionApi } from '../api/ConsumptionApi.js';
+import type { ConsumptionApi, TimeRange } from '../api/ConsumptionApi.js';
 import type { AcuLimitsApi } from '../api/AcuLimitsApi.js';
 import type { OrgRegistry } from '../orgs/OrgRegistry.js';
 import type { UserResolver } from '../users/UserResolver.js';
@@ -35,13 +35,13 @@ export class MonitoringService {
     private readonly userResolver: UserResolver
   ) {}
 
-  async monitorOrg(nameOrId: string, month: string): Promise<OrgMonitorResult> {
+  async monitorOrg(nameOrId: string, month: string, range?: TimeRange): Promise<OrgMonitorResult> {
     const org = await this.orgRegistry.resolve(nameOrId);
-    const range = monthToTimeRange(month);
+    const resolvedRange = range ?? monthToTimeRange(month);
 
     const [limit, consumption] = await Promise.all([
       this.acuLimitsApi.getOrg(org.org_id).catch(() => ({} as OrgAcuLimitResponse)),
-      this.consumptionApi.getOrgDaily(org.org_id, range),
+      this.consumptionApi.getOrgDaily(org.org_id, resolvedRange),
     ]);
 
     const { total, byProduct } = aggregate(consumption.consumption_by_date);
@@ -57,13 +57,13 @@ export class MonitoringService {
     };
   }
 
-  async monitorUser(emailOrId: string, month: string): Promise<UserMonitorResult> {
+  async monitorUser(emailOrId: string, month: string, range?: TimeRange): Promise<UserMonitorResult> {
     const userId = await this.userResolver.resolveId(emailOrId);
-    const range = monthToTimeRange(month);
+    const resolvedRange = range ?? monthToTimeRange(month);
 
     const [limit, consumption] = await Promise.all([
       this.acuLimitsApi.getUser(userId).catch(() => ({} as UserAcuLimitResponse)),
-      this.consumptionApi.getUserDaily(userId, range),
+      this.consumptionApi.getUserDaily(userId, resolvedRange),
     ]);
 
     const { byProduct } = aggregate(consumption.consumption_by_date);
