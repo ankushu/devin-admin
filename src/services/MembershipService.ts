@@ -54,6 +54,65 @@ export class MembershipService {
     await this.membersApi.addToOrgs(org.org_id, body);
   }
 
+  async removeOrg(
+    emailOrId: string,
+    orgNameOrId: string,
+    opts: { dryRun?: boolean; confirm?: (message: string) => Promise<boolean> } = {}
+  ): Promise<{ removed: boolean }> {
+    const [userId, org] = await Promise.all([
+      this.userResolver.resolveId(emailOrId),
+      this.orgRegistry.resolve(orgNameOrId),
+    ]);
+
+    let protectedOrgId: string | null = null;
+    try {
+      protectedOrgId = (await this.orgRegistry.resolve(PROTECTED_ORG_NAME)).org_id;
+    } catch {
+      protectedOrgId = null;
+    }
+
+    let billingOrgId: string | undefined;
+    try {
+      const acu = await this.acuLimitService.getUser(userId);
+      billingOrgId = acu.local_agent?.billing_org_id;
+    } catch {
+      billingOrgId = undefined;
+    }
+
+    const warnings: string[] = [];
+    if (protectedOrgId && org.org_id === protectedOrgId) {
+      warnings.push(
+        `Target org "${org.name}" (${org.org_id}) is protected and usually should not be removed from.`
+      );
+    }
+    if (billingOrgId && billingOrgId === org.org_id) {
+      warnings.push(
+        `User billing_org_id is "${org.org_id}", the same org you are removing from.`
+      );
+    }
+
+    if (warnings.length > 0) {
+      console.warn(`Warning: ${warnings.join(' ')}`);
+      if (!opts.dryRun) {
+        const confirmed = opts.confirm
+          ? await opts.confirm('Proceed with removal? Type "yes" to continue: ')
+          : false;
+        if (!confirmed) {
+          console.log('Cancelled.');
+          return { removed: false };
+        }
+      }
+    }
+
+    if (opts.dryRun) {
+      renderDryRun('DELETE', `/v2/enterprise/organizations/${org.org_id}/members/${userId}`);
+      return { removed: false };
+    }
+
+    await this.membersApi.removeFromOrgs(userId, [org.org_id]);
+    return { removed: true };
+  }
+
   // Adds the user to the target org and removes them from all other orgs.
   // Accepts email or user_id — matches on both in the enterprise member list.
   async setOnlyOrg(

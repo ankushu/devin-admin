@@ -57,6 +57,16 @@ describe('MonitoringService', () => {
       });
     });
 
+    it('supports explicit start/end date range with inclusive end', async () => {
+      const api = makeConsumptionApi();
+      const svc2 = new MonitoringService(api, makeAcuApi(), makeRegistry(), makeUserResolver());
+      await svc2.monitorOrg('Alpha', { start: '2026-06-10', end: '2026-06-12' });
+      expect(vi.mocked(api.getOrgDaily)).toHaveBeenCalledWith('org-1', {
+        time_after: Math.floor(new Date('2026-06-10T08:00:00Z').getTime() / 1000),
+        time_before: Math.floor(new Date('2026-06-13T08:00:00Z').getTime() / 1000),
+      });
+    });
+
     it('sums total ACUs across all days', async () => {
       const result = await svc.monitorOrg('Alpha', '2026-06');
       expect(result.totalAcus).toBe(350); // 100 + 200 + 50
@@ -73,6 +83,16 @@ describe('MonitoringService', () => {
       const result = await svc.monitorOrg('Alpha', '2026-06');
       expect(result.cloudLimit).toBe(1000);
     });
+
+    it('includes daily trend rows in the result', async () => {
+      const result = await svc.monitorOrg('Alpha', '2026-06');
+      expect(result.dailyTrend).toHaveLength(3);
+      expect(result.dailyTrend[0]).toEqual({
+        date: '2025-06-01',
+        acus: 100,
+        byProduct: { devin: 60, cascade: 40 },
+      });
+    });
   });
 
   describe('monitorUser', () => {
@@ -83,6 +103,16 @@ describe('MonitoringService', () => {
       await svc2.monitorUser('alice@example.com', '2026-06');
       expect(resolver.resolveId).toHaveBeenCalledWith('alice@example.com');
       expect(vi.mocked(consumptionApi.getUserDaily)).toHaveBeenCalledWith('user-abc', expect.any(Object));
+    });
+
+    it('supports explicit start/end date range with inclusive end', async () => {
+      const consumptionApi = makeConsumptionApi();
+      const svc2 = new MonitoringService(consumptionApi, makeAcuApi(), makeRegistry(), makeUserResolver());
+      await svc2.monitorUser('alice@example.com', { start: '2026-06-05', end: '2026-06-05' });
+      expect(vi.mocked(consumptionApi.getUserDaily)).toHaveBeenCalledWith('user-abc', {
+        time_after: Math.floor(new Date('2026-06-05T08:00:00Z').getTime() / 1000),
+        time_before: Math.floor(new Date('2026-06-06T08:00:00Z').getTime() / 1000),
+      });
     });
 
     it('returns total_acus from the API response', async () => {
@@ -100,6 +130,16 @@ describe('MonitoringService', () => {
     it('surfaces user local limit', async () => {
       const result = await svc.monitorUser('alice@example.com', '2026-06');
       expect(result.localLimit).toBe(500);
+    });
+
+    it('includes daily trend rows in the result', async () => {
+      const result = await svc.monitorUser('alice@example.com', '2026-06');
+      expect(result.dailyTrend).toHaveLength(3);
+      expect(result.dailyTrend[1]).toEqual({
+        date: '2025-06-02',
+        acus: 200,
+        byProduct: { devin: 120, terminal: 80 },
+      });
     });
   });
 });
