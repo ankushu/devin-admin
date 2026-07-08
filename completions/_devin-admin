@@ -4,12 +4,34 @@
 # Keep in sync with src/cli/commands/*.ts and src/cli/index.ts whenever
 # commands, subcommands, or flags change.
 
-_devin_admin_global_flags=(
-  '--json[output raw JSON instead of tables]'
-  '--dry-run[print the intended API request without executing it]'
-)
-
 _devin-admin() {
+  local curcontext="$curcontext" state state_descr line
+  typeset -A opt_args
+
+  local -a global_flags
+  global_flags=(
+    '--json[output raw JSON instead of tables]'
+    '--dry-run[print the intended API request without executing it]'
+  )
+
+  _arguments -C \
+    $global_flags \
+    '1: :_devin_admin_cmds' \
+    '*::subcmd:->subcmd'
+
+  case $state in
+    subcmd)
+      case $line[1] in
+        orgs)     _devin_admin_orgs ;;
+        acu)      _devin_admin_acu ;;
+        membership) _devin_admin_membership ;;
+        monitor)  _devin_admin_monitor ;;
+      esac
+      ;;
+  esac
+}
+
+_devin_admin_cmds() {
   local -a commands
   commands=(
     'orgs:organization cache'
@@ -17,138 +39,185 @@ _devin-admin() {
     'membership:org membership'
     'monitor:consumption monitoring'
   )
+  _describe 'command' commands
+}
+
+_devin_admin_global_flags() {
+  _arguments \
+    '--json[output raw JSON instead of tables]' \
+    '--dry-run[print the intended API request without executing it]'
+}
+
+_devin_admin_orgs() {
+  local curcontext="$curcontext" state state_descr line
+  typeset -A opt_args
+
+  local -a subcommands
+  subcommands=(
+    'get:get a single org'
+    'list:list cached orgs'
+    'refresh:force refresh from API'
+  )
 
   _arguments -C \
-    $_devin_admin_global_flags \
-    '1: :->command' \
+    '--json[output raw JSON instead of tables]' \
+    '--dry-run[print the intended API request without executing it]' \
+    '1: :->subcmd' \
     '*::arg:->args'
 
   case $state in
-    command)
-      _describe 'command' commands
-      ;;
+    subcmd) _describe 'orgs subcommand' subcommands ;;
     args)
-      case $words[2] in
-        orgs)
-          local -a orgs_subcommands
-          orgs_subcommands=(
-            'get:get a single org'
-            'list:list cached orgs'
-            'refresh:force refresh from API'
-          )
-          _arguments -C \
-            $_devin_admin_global_flags \
-            '2: :->orgs_command' \
-            '*::arg:->orgs_args'
-          case $state in
-            orgs_command) _describe 'orgs subcommand' orgs_subcommands ;;
-            orgs_args)
-              case $words[3] in
-                list) _arguments $_devin_admin_global_flags '--refresh[force refresh from API]' ;;
-              esac
-              ;;
-          esac
+      case $line[1] in
+        list)
+          _arguments \
+            '--json[output raw JSON instead of tables]' \
+            '--dry-run[print the intended API request without executing it]' \
+            '--refresh[force refresh from API]'
           ;;
-        acu)
-          local -a acu_subcommands
-          acu_subcommands=(
-            'get-org:get an org ACU limit'
-            'set-org:set an org ACU limit'
-            'clear-org:clear an org ACU limit'
-            'get-user:get a user ACU limit'
-            'set-user:set a user ACU limit'
-            'clear-user:clear a user ACU limit'
-            'get-default:get the enterprise default limit'
-            'set-default:set the enterprise default limit'
-          )
-          _arguments -C \
-            $_devin_admin_global_flags \
-            '2: :->acu_command' \
-            '*::arg:->acu_args'
-          case $state in
-            acu_command) _describe 'acu subcommand' acu_subcommands ;;
-            acu_args)
-              case $words[3] in
-                set-org)
-                  _arguments $_devin_admin_global_flags \
-                    '--local=[local ACU limit]:n' \
-                    '--cloud=[cloud ACU limit]:n'
-                  ;;
-                set-user)
-                  _arguments $_devin_admin_global_flags \
-                    '--local=[local ACU limit]:n' \
-                    '--billing-org=[billing org]:org'
-                  ;;
-                set-default)
-                  _arguments $_devin_admin_global_flags \
-                    '--local=[local ACU limit]:n'
-                  ;;
-              esac
-              ;;
-          esac
+      esac
+      ;;
+  esac
+}
+
+_devin_admin_acu() {
+  local curcontext="$curcontext" state state_descr line
+  typeset -A opt_args
+
+  local -a subcommands
+  subcommands=(
+    'get-org:get an org ACU limit'
+    'set-org:set an org ACU limit'
+    'clear-org:clear an org ACU limit'
+    'get-user:get a user ACU limit'
+    'set-user:set a user ACU limit'
+    'clear-user:clear a user ACU limit'
+    'get-default:get the enterprise default limit'
+    'set-default:set the enterprise default limit'
+  )
+
+  _arguments -C \
+    '--json[output raw JSON instead of tables]' \
+    '--dry-run[print the intended API request without executing it]' \
+    '1: :->subcmd' \
+    '*::arg:->args'
+
+  case $state in
+    subcmd) _describe 'acu subcommand' subcommands ;;
+    args)
+      case $line[1] in
+        set-org)
+          _arguments \
+            '--json[output raw JSON instead of tables]' \
+            '--dry-run[print the intended API request without executing it]' \
+            '--local=[local ACU limit]:n' \
+            '--cloud=[cloud ACU limit]:n'
           ;;
-        membership)
-          local -a membership_subcommands
-          membership_subcommands=(
-            'get-user:get a user'"'"'s membership'
-            'list-users:list users in an org'
-            'set-billing-org:set a user'"'"'s billing org'
-            'assign:add a user to an org'
-            'remove:remove a user from an org'
-            'set-only:set exactly one org for a user'
-          )
-          _arguments -C \
-            $_devin_admin_global_flags \
-            '2: :->membership_command' \
-            '*::arg:->membership_args'
-          case $state in
-            membership_command) _describe 'membership subcommand' membership_subcommands ;;
-            membership_args)
-              case $words[3] in
-                list-users)
-                  _arguments $_devin_admin_global_flags '--org=[org]:org'
-                  ;;
-                set-billing-org)
-                  _arguments $_devin_admin_global_flags '--billing-org=[billing org]:org'
-                  ;;
-                assign)
-                  _arguments $_devin_admin_global_flags \
-                    '--org=[org]:org' \
-                    '--role=[role]:role'
-                  ;;
-                remove)
-                  _arguments $_devin_admin_global_flags '--org=[org]:org'
-                  ;;
-                set-only)
-                  _arguments $_devin_admin_global_flags '--org=[org]:org'
-                  ;;
-              esac
-              ;;
-          esac
+        set-user)
+          _arguments \
+            '--json[output raw JSON instead of tables]' \
+            '--dry-run[print the intended API request without executing it]' \
+            '--local=[local ACU limit]:n' \
+            '--billing-org=[billing org]:org'
           ;;
-        monitor)
-          local -a monitor_subcommands
-          monitor_subcommands=(
-            'org:enterprise-wide ACUs vs an org'"'"'s cycle limit'
-            'user:per-user ACU breakdown by product'
-          )
-          _arguments -C \
-            $_devin_admin_global_flags \
-            '2: :->monitor_command' \
-            '*::arg:->monitor_args'
-          case $state in
-            monitor_command) _describe 'monitor subcommand' monitor_subcommands ;;
-            monitor_args)
-              case $words[3] in
-                org|user)
-                  _arguments $_devin_admin_global_flags \
-                    '--month=[month, YYYY-MM]:month' \
-                    '--start=[start date, YYYY-MM-DD]:date' \
-                    '--end=[end date, YYYY-MM-DD]:date'
-                  ;;
-              esac
-              ;;
-          esac
+        set-default)
+          _arguments \
+            '--json[output raw JSON instead of tables]' \
+            '--dry-run[print the intended API request without executing it]' \
+            '--local=[local ACU limit]:n'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_devin_admin_membership() {
+  local curcontext="$curcontext" state state_descr line
+  typeset -A opt_args
+
+  local -a subcommands
+  subcommands=(
+    "get-user:get a user's membership"
+    'list-users:list users in an org'
+    "set-billing-org:set a user's billing org"
+    'assign:add a user to an org'
+    'remove:remove a user from an org'
+    'set-only:set exactly one org for a user'
+  )
+
+  _arguments -C \
+    '--json[output raw JSON instead of tables]' \
+    '--dry-run[print the intended API request without executing it]' \
+    '1: :->subcmd' \
+    '*::arg:->args'
+
+  case $state in
+    subcmd) _describe 'membership subcommand' subcommands ;;
+    args)
+      case $line[1] in
+        list-users)
+          _arguments \
+            '--json[output raw JSON instead of tables]' \
+            '--dry-run[print the intended API request without executing it]' \
+            '--org=[org]:org'
+          ;;
+        set-billing-org)
+          _arguments \
+            '--json[output raw JSON instead of tables]' \
+            '--dry-run[print the intended API request without executing it]' \
+            '--billing-org=[billing org]:org'
+          ;;
+        assign)
+          _arguments \
+            '--json[output raw JSON instead of tables]' \
+            '--dry-run[print the intended API request without executing it]' \
+            '--org=[org]:org' \
+            '--role=[role]:role'
+          ;;
+        remove)
+          _arguments \
+            '--json[output raw JSON instead of tables]' \
+            '--dry-run[print the intended API request without executing it]' \
+            '--org=[org]:org'
+          ;;
+        set-only)
+          _arguments \
+            '--json[output raw JSON instead of tables]' \
+            '--dry-run[print the intended API request without executing it]' \
+            '--org=[org]:org'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_devin_admin_monitor() {
+  local curcontext="$curcontext" state state_descr line
+  typeset -A opt_args
+
+  local -a subcommands
+  subcommands=(
+    "org:enterprise-wide ACUs vs an org's cycle limit"
+    'user:per-user ACU breakdown by product'
+  )
+
+  _arguments -C \
+    '--json[output raw JSON instead of tables]' \
+    '--dry-run[print the intended API request without executing it]' \
+    '1: :->subcmd' \
+    '*::arg:->args'
+
+  case $state in
+    subcmd) _describe 'monitor subcommand' subcommands ;;
+    args)
+      case $line[1] in
+        org|user)
+          _arguments \
+            '--json[output raw JSON instead of tables]' \
+            '--dry-run[print the intended API request without executing it]' \
+            '--month=[month, YYYY-MM]:month' \
+            '--start=[start date, YYYY-MM-DD]:date' \
+            '--end=[end date, YYYY-MM-DD]:date'
           ;;
       esac
       ;;
