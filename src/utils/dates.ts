@@ -1,3 +1,5 @@
+import { getConfig } from '../config/config.js';
+
 // Month "YYYY-MM" → unix timestamps at midnight PST (= 08:00 UTC), matching
 // the Devin API's billing-cycle boundary.
 export function monthToTimeRange(month: string): { time_after: number; time_before: number } {
@@ -36,7 +38,8 @@ export function dateRangeToTimeRange(start: string, end: string): { time_after: 
 }
 
 function toUnix(year: number, mon: number): number {
-  const iso = `${year}-${String(mon).padStart(2, '0')}-18T08:00:00Z`;
+  const startDay = getConfig().BILLING_CYCLE_START_DAY;
+  const iso = `${year}-${String(mon).padStart(2, '0')}-${String(startDay).padStart(2, '0')}T08:00:00Z`;
   return Math.floor(new Date(iso).getTime() / 1000);
 }
 
@@ -64,8 +67,9 @@ export function formatMonth(month: string): string {
   const [yearStr, monStr] = month.split('-');
   const year = Number(yearStr);
   const mon = Number(monStr);
+  const startDay = getConfig().BILLING_CYCLE_START_DAY;
 
-  const startD = new Date(Date.UTC(year, mon - 1, 18, 12, 0, 0));
+  const startD = new Date(Date.UTC(year, mon - 1, startDay, 12, 0, 0));
   
   let nextYear = year;
   let nextMon = mon + 1;
@@ -73,7 +77,9 @@ export function formatMonth(month: string): string {
     nextMon = 1;
     nextYear += 1;
   }
-  const endD = new Date(Date.UTC(nextYear, nextMon - 1, 17, 12, 0, 0));
+  
+  // To get the end date, we subtract 1 day from the start day of the next month
+  const endD = new Date(Date.UTC(nextYear, nextMon - 1, startDay - 1, 12, 0, 0));
 
   const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
   const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -83,7 +89,9 @@ export function formatMonth(month: string): string {
 
 export function getCycleForDate(dateStr: string): string {
   const { year, mon, day } = parseYyyyMmDd(dateStr, 'date');
-  if (day >= 18) {
+  const startDay = getConfig().BILLING_CYCLE_START_DAY;
+
+  if (day >= startDay) {
     return `${year}-${String(mon).padStart(2, '0')}`;
   } else {
     let prevYear = year;
