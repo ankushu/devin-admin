@@ -36,7 +36,7 @@ export function dateRangeToTimeRange(start: string, end: string): { time_after: 
 }
 
 function toUnix(year: number, mon: number): number {
-  const iso = `${year}-${String(mon).padStart(2, '0')}-01T08:00:00Z`;
+  const iso = `${year}-${String(mon).padStart(2, '0')}-18T08:00:00Z`;
   return Math.floor(new Date(iso).getTime() / 1000);
 }
 
@@ -61,7 +61,37 @@ function parseYyyyMmDd(value: string, label: string): { year: number; mon: numbe
 }
 
 export function formatMonth(month: string): string {
-  const [year, mon] = month.split('-');
-  const d = new Date(`${year}-${mon}-01T12:00:00Z`);
-  return d.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const [yearStr, monStr] = month.split('-');
+  const year = Number(yearStr);
+  const mon = Number(monStr);
+
+  const startD = new Date(Date.UTC(year, mon - 1, 18, 12, 0, 0));
+  
+  let nextYear = year;
+  let nextMon = mon + 1;
+  if (nextMon > 12) {
+    nextMon = 1;
+    nextYear += 1;
+  }
+  const endD = new Date(Date.UTC(nextYear, nextMon - 1, 17, 12, 0, 0));
+
+  const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+  return `${monthFormatter.format(startD)} (${formatter.format(startD)} - ${formatter.format(endD)})`;
+}
+
+export function getCycleForDate(dateStr: string): string {
+  const { year, mon, day } = parseYyyyMmDd(dateStr, 'date');
+  if (day >= 18) {
+    return `${year}-${String(mon).padStart(2, '0')}`;
+  } else {
+    let prevYear = year;
+    let prevMon = mon - 1;
+    if (prevMon < 1) {
+      prevMon = 12;
+      prevYear -= 1;
+    }
+    return `${prevYear}-${String(prevMon).padStart(2, '0')}`;
+  }
 }

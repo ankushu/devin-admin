@@ -4,19 +4,26 @@ import type { OrgRegistry } from '../orgs/OrgRegistry.js';
 import type { UserResolver } from '../users/UserResolver.js';
 import type { TimeRange } from '../api/ConsumptionApi.js';
 import type { AcusByProduct, ConsumptionDay, OrgAcuLimitResponse, UserAcuLimitResponse } from '../models/types.js';
-import { dateRangeToTimeRange, monthToTimeRange } from '../utils/dates.js';
+import { dateRangeToTimeRange, monthToTimeRange, getCycleForDate } from '../utils/dates.js';
 
 export enum ConsumptionDimension {
   ByProduct = 'by_product',
+}
+
+export interface CycleConsumption {
+  cycleId: string;
+  totalAcus: number;
 }
 
 export interface OrgMonitorResult {
   orgId: string;
   orgName: string;
   month: string;
+  isPartialCycle: boolean;
   totalAcus: number;
   cloudLimit: number | undefined;
   localLimit: number | undefined;
+  cycles: CycleConsumption[];
   byProduct: AcusByProduct;
   dailyTrend: DailyTrendRow[];
 }
@@ -24,8 +31,10 @@ export interface OrgMonitorResult {
 export interface UserMonitorResult {
   userId: string;
   month: string;
+  isPartialCycle: boolean;
   totalAcus: number;
   localLimit: number | undefined;
+  cycles: CycleConsumption[];
   byProduct: AcusByProduct;
   dailyTrend: DailyTrendRow[];
 }
@@ -48,23 +57,25 @@ export class MonitoringService {
 
   async monitorOrg(nameOrId: string, period: MonitorPeriodInput): Promise<OrgMonitorResult> {
     const org = await this.orgRegistry.resolve(nameOrId);
-    const { range, month } = resolvePeriod(period);
+    const { range, month, isPartialCycle } = resolvePeriod(period);
 
     const [limit, consumption] = await Promise.all([
       this.acuLimitsApi.getOrg(org.org_id).catch(() => ({} as OrgAcuLimitResponse)),
       this.consumptionApi.getOrgDaily(org.org_id, range),
     ]);
 
-    const { total, byProduct } = aggregate(consumption.consumption_by_date);
+    const { total, byProduct, cycles } = aggregate(consumption.consumption_by_date);
     const dailyTrend = toDailyTrend(consumption.consumption_by_date);
 
     return {
       orgId: org.org_id,
       orgName: org.name,
       month,
+      isPartialCycle,
       totalAcus: total,
       cloudLimit: limit.cloud_agent?.cycle_acu_limit,
       localLimit: limit.local_agent?.cycle_acu_limit,
+      cycles,
       byProduct,
       dailyTrend,
     };
@@ -72,33 +83,40 @@ export class MonitoringService {
 
   async monitorUser(emailOrId: string, period: MonitorPeriodInput): Promise<UserMonitorResult> {
     const userId = await this.userResolver.resolveId(emailOrId);
-    const { range, month } = resolvePeriod(period);
+    const { range, month, isPartialCycle } = resolvePeriod(period);
 
     const [limit, consumption] = await Promise.all([
       this.acuLimitsApi.getUser(userId).catch(() => ({} as UserAcuLimitResponse)),
       this.consumptionApi.getUserDaily(userId, range),
     ]);
 
-    const { byProduct } = aggregate(consumption.consumption_by_date);
+    const { byProduct, cycles } = aggregate(consumption.consumption_by_date);
     const dailyTrend = toDailyTrend(consumption.consumption_by_date);
 
     return {
       userId,
       month,
+      isPartialCycle,
       totalAcus: consumption.total_acus,
       localLimit: limit.local_agent?.cycle_acu_limit,
+      cycles,
       byProduct,
       dailyTrend,
     };
   }
 }
 
-function aggregate(days: ConsumptionDay[]): { total: number; byProduct: AcusByProduct } {
+function aggregate(days: ConsumptionDay[]): { total: number; byProduct: AcusByProduct; cycles: CycleConsumption[] } {
   let total = 0;
   const byProduct: AcusByProduct = {};
+  const cycleTotals: Record<string, number> = {};
 
   for (const day of days) {
     total += day.acus;
+    const dateStr = new Date(day.date * 1000).toISOString().slice(0, 10);
+    const cycleId = getCycleForDate(dateStr);
+    cycleTotals[cycleId] = (cycleTotals[cycleId] ?? 0) + day.acus;
+
     if (day.acus_by_product) {
       for (const [k, v] of Object.entries(day.acus_by_product)) {
         if (v != null) byProduct[k] = (byProduct[k] ?? 0) + v;
@@ -106,7 +124,11 @@ function aggregate(days: ConsumptionDay[]): { total: number; byProduct: AcusByPr
     }
   }
 
-  return { total, byProduct };
+  const cycles = Object.entries(cycleTotals)
+    .map(([cycleId, totalAcus]) => ({ cycleId, totalAcus }))
+    .sort((a, b) => a.cycleId.localeCompare(b.cycleId));
+
+  return { total, byProduct, cycles };
 }
 
 export function pctUsed(used: number, limit: number | undefined): string {
@@ -124,15 +146,16 @@ function toDailyTrend(days: ConsumptionDay[]): DailyTrendRow[] {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function resolvePeriod(period: MonitorPeriodInput): { range: TimeRange; month: string } {
+function resolvePeriod(period: MonitorPeriodInput): { range: TimeRange; month: string; isPartialCycle: boolean } {
   if (typeof period === 'string') {
-    return { range: monthToTimeRange(period), month: period };
+    return { range: monthToTimeRange(period), month: period, isPartialCycle: false };
   }
   if ('month' in period) {
-    return { range: monthToTimeRange(period.month), month: period.month };
+    return { range: monthToTimeRange(period.month), month: period.month, isPartialCycle: false };
   }
   return {
     range: dateRangeToTimeRange(period.start, period.end),
     month: `${period.start}..${period.end}`,
+    isPartialCycle: true,
   };
 }
