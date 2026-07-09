@@ -21,11 +21,10 @@ export class MembersApi {
   }
 
   // Removes a user from each org individually.
-  // Endpoint: DELETE /v2/enterprise/organizations/{org_id}/members/{user_id}
   async removeFromOrgs(userId: string, orgIds: string[]): Promise<void> {
     await Promise.all(
       orgIds.map((orgId) =>
-        this.http.request('DELETE', `/v2/enterprise/organizations/${orgId}/members/${userId}`)
+        this.http.request('DELETE', `/v3/enterprise/organizations/${orgId}/members/users/${userId}`)
       )
     );
   }
