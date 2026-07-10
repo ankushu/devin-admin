@@ -33,9 +33,25 @@ export function monitorCommand(): Command {
         ['Total ACUs', result.totalAcus],
         ['Cycle limit (cloud)', result.cloudLimit],
         ['Cycle limit (local)', result.localLimit],
-        ['% of limit used', pctUsed(result.totalAcus, limit)],
-        ['Remaining', limit !== undefined ? Math.max(0, limit - result.totalAcus) : 'N/A'],
       ]);
+
+      if (result.cycles.length > 0) {
+        console.log('\nCycle breakdown:');
+        renderTable(
+          result.cycles.map((c) => ({
+            cycle: formatMonth(c.cycleId),
+            acus: c.totalAcus,
+            limit: limit ?? 'N/A',
+            pct: pctUsed(c.totalAcus, limit),
+          })),
+          ['cycle', 'acus', 'limit', 'pct'],
+          ['Cycle', 'ACUs Used', 'Limit', '% Used']
+        );
+        if (result.isPartialCycle) {
+          console.log('\n  * Note: \'% Used\' reflects ACUs consumed during the requested period only; there may be more usage in the full cycle.');
+        }
+      }
+
       if (Object.keys(result.byProduct).length > 0) {
         console.log('\nBy product:');
         renderKV(Object.entries(result.byProduct).map(([k, v]) => [k, v]));
@@ -70,9 +86,24 @@ export function monitorCommand(): Command {
       renderKV([
         ['Total ACUs', result.totalAcus],
         ['Cycle limit (local)', result.localLimit],
-        ['% of limit used', pctUsed(result.totalAcus, result.localLimit)],
-        ['Remaining', result.localLimit !== undefined ? Math.max(0, result.localLimit - result.totalAcus) : 'N/A'],
       ]);
+
+      if (result.cycles.length > 0) {
+        console.log('\nCycle breakdown:');
+        renderTable(
+          result.cycles.map((c) => ({
+            cycle: formatMonth(c.cycleId),
+            acus: c.totalAcus,
+            limit: result.localLimit ?? 'N/A',
+            pct: pctUsed(c.totalAcus, result.localLimit),
+          })),
+          ['cycle', 'acus', 'limit', 'pct'],
+          ['Cycle', 'ACUs Used', 'Limit', '% Used']
+        );
+        if (result.isPartialCycle) {
+          console.log('\n  * Note: \'% Used\' reflects ACUs consumed during the requested period only; there may be more usage in the full cycle.');
+        }
+      }
 
       const productRows = productBreakdownRows(result.byProduct);
       if (productRows.length > 0) {

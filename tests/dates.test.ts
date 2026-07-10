@@ -2,18 +2,18 @@ import { describe, it, expect } from 'vitest';
 import { dateRangeToTimeRange, monthToTimeRange } from '../src/utils/dates.js';
 
 describe('monthToTimeRange', () => {
-  it('returns unix timestamps at midnight PST (08:00 UTC) for a given month', () => {
+  it('returns unix timestamps at 08:00 UTC starting from the 18th for a given month', () => {
     const { time_after, time_before } = monthToTimeRange('2026-06');
-    // 2026-06-01T08:00:00Z
-    expect(time_after).toBe(Math.floor(new Date('2026-06-01T08:00:00Z').getTime() / 1000));
-    // 2026-07-01T08:00:00Z
-    expect(time_before).toBe(Math.floor(new Date('2026-07-01T08:00:00Z').getTime() / 1000));
+    // 2026-06-18T08:00:00Z
+    expect(time_after).toBe(Math.floor(new Date('2026-06-18T08:00:00Z').getTime() / 1000));
+    // 2026-07-18T08:00:00Z
+    expect(time_before).toBe(Math.floor(new Date('2026-07-18T08:00:00Z').getTime() / 1000));
   });
 
   it('handles December → January year rollover', () => {
     const { time_after, time_before } = monthToTimeRange('2025-12');
-    expect(time_after).toBe(Math.floor(new Date('2025-12-01T08:00:00Z').getTime() / 1000));
-    expect(time_before).toBe(Math.floor(new Date('2026-01-01T08:00:00Z').getTime() / 1000));
+    expect(time_after).toBe(Math.floor(new Date('2025-12-18T08:00:00Z').getTime() / 1000));
+    expect(time_before).toBe(Math.floor(new Date('2026-01-18T08:00:00Z').getTime() / 1000));
   });
 
   it('time_before is strictly after time_after', () => {
