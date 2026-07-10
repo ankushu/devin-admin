@@ -58,11 +58,7 @@ export function monitorCommand(): Command {
       }
       if (result.dailyTrend.length > 0) {
         console.log('\nDaily trend:');
-        renderTable(
-          result.dailyTrend.map((row) => ({ date: row.date, acus: row.acus })),
-          ['date', 'acus'],
-          ['Date', 'ACUs']
-        );
+        renderDailyTrendTable(result.dailyTrend);
       }
     });
 
@@ -115,11 +111,7 @@ export function monitorCommand(): Command {
 
       if (result.dailyTrend.length > 0) {
         console.log('\nDaily trend:');
-        renderTable(
-          result.dailyTrend.map((row) => ({ date: row.date, acus: row.acus })),
-          ['date', 'acus'],
-          ['Date', 'ACUs']
-        );
+        renderDailyTrendTable(result.dailyTrend);
       }
     });
 
@@ -131,6 +123,42 @@ function productBreakdownRows(byProduct: AcusByProduct): Record<string, unknown>
     .filter(([, v]) => v != null && v > 0)
     .map(([k, v]) => ({ product: k, acus: v }))
     .sort((a, b) => (b.acus as number) - (a.acus as number));
+}
+
+function renderDailyTrendTable(dailyTrend: import('../../services/MonitoringService.js').DailyTrendRow[]): void {
+  // Extract all unique product names from the daily trend data
+  const productNames = new Set<string>();
+  for (const row of dailyTrend) {
+    if (row.byProduct) {
+      for (const productName of Object.keys(row.byProduct)) {
+        productNames.add(productName);
+      }
+    }
+  }
+
+  // Sort product names alphabetically for consistent column ordering
+  const sortedProductNames = Array.from(productNames).sort();
+
+  // Build the table rows
+  const tableRows = dailyTrend.map((row) => {
+    const rowObj: Record<string, unknown> = {
+      date: row.date,
+      acus: row.acus,
+    };
+
+    // Add each product's ACUs to the row
+    for (const productName of sortedProductNames) {
+      rowObj[productName] = row.byProduct?.[productName] ?? 0;
+    }
+
+    return rowObj;
+  });
+
+  // Build column keys and headers
+  const columnKeys = ['date', 'acus', ...sortedProductNames];
+  const columnHeaders = ['Date', 'ACUs', ...sortedProductNames.map((p) => p.charAt(0).toUpperCase() + p.slice(1))];
+
+  renderTable(tableRows, columnKeys, columnHeaders);
 }
 
 function rootOpts(cmd: Command): Record<string, unknown> {
