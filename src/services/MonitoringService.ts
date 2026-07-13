@@ -28,6 +28,19 @@ export interface OrgMonitorResult {
   dailyTrend: DailyTrendRow[];
 }
 
+export interface AllOrgsMonitorResult {
+  month: string;
+  orgs: OrgSummary[];
+}
+
+export interface OrgSummary {
+  orgId: string;
+  orgName: string;
+  totalAcus: number;
+  limit: number | undefined;
+  byProduct: AcusByProduct;
+}
+
 export interface UserMonitorResult {
   userId: string;
   month: string;
@@ -104,6 +117,43 @@ export class MonitoringService {
       dailyTrend,
     };
   }
+
+  async monitorAllOrgs(period: MonitorPeriodInput): Promise<AllOrgsMonitorResult> {
+    const { range, month } = resolvePeriod(period);
+    const orgs = await this.orgRegistry.get();
+
+    const orgSummaries: OrgSummary[] = (
+      await Promise.all(
+        orgs.map(async (org) => {
+          try {
+            const [limit, consumption] = await Promise.all([
+              this.acuLimitsApi.getOrg(org.org_id).catch(() => ({} as OrgAcuLimitResponse)),
+              this.consumptionApi.getOrgDaily(org.org_id, range),
+            ]);
+
+            const { total, byProduct } = aggregate(consumption.consumption_by_date);
+            const effectiveLimit = limit.cloud_agent?.cycle_acu_limit ?? limit.local_agent?.cycle_acu_limit;
+
+            return {
+              orgId: org.org_id,
+              orgName: org.name,
+              totalAcus: total,
+              limit: effectiveLimit,
+              byProduct,
+            };
+          } catch (error) {
+            // Skip orgs that don't have consumption data (404 or other errors)
+            return null;
+          }
+        })
+      )
+    ).filter((org): org is OrgSummary => org !== null);
+
+    return {
+      month,
+      orgs: orgSummaries.sort((a, b) => b.totalAcus - a.totalAcus),
+    };
+  }
 }
 
 function aggregate(days: ConsumptionDay[]): { total: number; byProduct: AcusByProduct; cycles: CycleConsumption[] } {
@@ -133,7 +183,12 @@ function aggregate(days: ConsumptionDay[]): { total: number; byProduct: AcusByPr
 
 export function pctUsed(used: number, limit: number | undefined): string {
   if (limit === undefined || limit === 0) return 'N/A';
-  return `${((used / limit) * 100).toFixed(1)}%`;
+  return `${((used / limit) * 100).toFixed(2)}%`;
+}
+
+export function pctOfTotal(value: number | null | undefined, total: number): string {
+  if (value == null || total === 0) return '0.00%';
+  return `${((value / total) * 100).toFixed(2)}%`;
 }
 
 function toDailyTrend(days: ConsumptionDay[]): DailyTrendRow[] {

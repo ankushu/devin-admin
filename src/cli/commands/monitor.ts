@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { buildContainer } from '../../container.js';
 import { renderKV, renderTable, renderJson } from '../../utils/output.js';
 import { formatMonth } from '../../utils/dates.js';
-import { pctUsed } from '../../services/MonitoringService.js';
+import { pctUsed, pctOfTotal } from '../../services/MonitoringService.js';
 import type { AcusByProduct } from '../../models/types.js';
 
 export function monitorCommand(): Command {
@@ -30,7 +30,7 @@ export function monitorCommand(): Command {
       console.log(`Period: ${formatPeriodLabel(result.month)}`);
       console.log('\n  (Enterprise-wide consumption — no per-org filter available in API)\n');
       renderKV([
-        ['Total ACUs', result.totalAcus],
+        ['Total ACUs', result.totalAcus.toFixed(2)],
         ['Cycle limit (cloud)', result.cloudLimit],
         ['Cycle limit (local)', result.localLimit],
       ]);
@@ -40,7 +40,7 @@ export function monitorCommand(): Command {
         renderTable(
           result.cycles.map((c) => ({
             cycle: formatMonth(c.cycleId),
-            acus: c.totalAcus,
+            acus: c.totalAcus.toFixed(2),
             limit: limit ?? 'N/A',
             pct: pctUsed(c.totalAcus, limit),
           })),
@@ -80,7 +80,7 @@ export function monitorCommand(): Command {
       console.log(`Period: ${formatPeriodLabel(result.month)}`);
       console.log();
       renderKV([
-        ['Total ACUs', result.totalAcus],
+        ['Total ACUs', result.totalAcus.toFixed(2)],
         ['Cycle limit (local)', result.localLimit],
       ]);
 
@@ -89,7 +89,7 @@ export function monitorCommand(): Command {
         renderTable(
           result.cycles.map((c) => ({
             cycle: formatMonth(c.cycleId),
-            acus: c.totalAcus,
+            acus: c.totalAcus.toFixed(2),
             limit: result.localLimit ?? 'N/A',
             pct: pctUsed(c.totalAcus, result.localLimit),
           })),
@@ -115,14 +115,54 @@ export function monitorCommand(): Command {
       }
     });
 
+  cmd
+    .command('all-orgs')
+    .description('Show ACU consumption for all organizations with product breakdown')
+    .option('--month <YYYY-MM>', 'billing month')
+    .option('--start <YYYY-MM-DD>', 'start date (inclusive)')
+    .option('--end <YYYY-MM-DD>', 'end date (inclusive)')
+    .action(async (opts, thisCmd) => {
+      const isJson = Boolean(rootOpts(thisCmd).json);
+      const { monitoringService } = buildContainer();
+      const period = resolvePeriodOptions(opts);
+      const result = await monitoringService.monitorAllOrgs(period);
+
+      if (isJson) return renderJson(result);
+
+      console.log(`\nPeriod: ${formatPeriodLabel(result.month)}`);
+      console.log();
+
+      const tableRows = result.orgs.map((org) => {
+        const row: Record<string, unknown> = {
+          org: org.orgName,
+          acu: org.totalAcus.toFixed(2),
+          pct: pctUsed(org.totalAcus, org.limit),
+        };
+
+        // Add product breakdown as percentage of total
+        row.devin = formatProductBreakdown(org.byProduct.devin, org.totalAcus);
+        row.cascade = formatProductBreakdown(org.byProduct.cascade, org.totalAcus);
+        row.review = formatProductBreakdown(org.byProduct.review, org.totalAcus);
+        row.terminal = formatProductBreakdown(org.byProduct.terminal, org.totalAcus);
+
+        return row;
+      });
+
+      renderTable(
+        tableRows,
+        ['org', 'acu', 'pct', 'devin', 'cascade', 'review', 'terminal'],
+        ['Org', 'ACU', '% Used', 'Devin', 'Cascade', 'Review', 'Terminal']
+      );
+    });
+
   return cmd;
 }
 
 function productBreakdownRows(byProduct: AcusByProduct): Record<string, unknown>[] {
   return Object.entries(byProduct)
     .filter(([, v]) => v != null && v > 0)
-    .map(([k, v]) => ({ product: k, acus: v }))
-    .sort((a, b) => (b.acus as number) - (a.acus as number));
+    .map(([k, v]) => ({ product: k, acus: (v as number).toFixed(2) }))
+    .sort((a, b) => parseFloat(b.acus as string) - parseFloat(a.acus as string));
 }
 
 function renderDailyTrendTable(dailyTrend: import('../../services/MonitoringService.js').DailyTrendRow[]): void {
@@ -143,12 +183,13 @@ function renderDailyTrendTable(dailyTrend: import('../../services/MonitoringServ
   const tableRows = dailyTrend.map((row) => {
     const rowObj: Record<string, unknown> = {
       date: row.date,
-      acus: row.acus,
+      acus: row.acus.toFixed(2),
     };
 
     // Add each product's ACUs to the row
     for (const productName of sortedProductNames) {
-      rowObj[productName] = row.byProduct?.[productName] ?? 0;
+      const value = row.byProduct?.[productName] ?? 0;
+      rowObj[productName] = typeof value === 'number' ? value.toFixed(2) : value;
     }
 
     return rowObj;
@@ -189,4 +230,10 @@ function resolvePeriodOptions(opts: { month?: string; start?: string; end?: stri
 function formatPeriodLabel(period: string): string {
   if (period.includes('..')) return period;
   return formatMonth(period);
+}
+
+function formatProductBreakdown(value: number | null | undefined, total: number): string {
+  if (value == null || value === 0) return '0.00 (0.00%)';
+  const pct = pctOfTotal(value, total);
+  return `${value.toFixed(2)} (${pct})`;
 }
