@@ -199,6 +199,7 @@ _devin_admin_monitor() {
   subcommands=(
     "org:enterprise-wide ACUs vs an org's cycle limit"
     'user:per-user ACU breakdown by product'
+    'all-orgs:show ACU consumption for all organizations with product breakdown'
   )
 
   _arguments -C \
@@ -211,7 +212,7 @@ _devin_admin_monitor() {
     subcmd) _describe 'monitor subcommand' subcommands ;;
     args)
       case $line[1] in
-        org|user)
+        org|user|all-orgs)
           _arguments \
             '--json[output raw JSON instead of tables]' \
             '--dry-run[print the intended API request without executing it]' \
