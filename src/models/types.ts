@@ -14,6 +14,12 @@ export interface Organization {
   max_cycle_acu_limit: number | null;
 }
 
+export interface OrganizationUpdateRequest {
+  max_session_acu_limit?: number | null;
+  max_cycle_acu_limit?: number | null;
+  name?: string | null;
+}
+
 export interface Role {
   role_id: string;
   role_name: string;

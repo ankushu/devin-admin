@@ -57,6 +57,7 @@ _devin_admin_orgs() {
     'get:get a single org'
     'list:list cached orgs'
     'refresh:force refresh from API'
+    'update:update organization settings'
   )
 
   _arguments -C \
@@ -74,6 +75,14 @@ _devin_admin_orgs() {
             '--json[output raw JSON instead of tables]' \
             '--dry-run[print the intended API request without executing it]' \
             '--refresh[force refresh from API]'
+          ;;
+        update)
+          _arguments \
+            '--json[output raw JSON instead of tables]' \
+            '--dry-run[print the intended API request without executing it]' \
+            '--display-name=[organization display name]:name' \
+            '--session-limit=[max session ACU limit]:n' \
+            '--cycle-limit=[max cycle ACU limit]:n'
           ;;
       esac
       ;;

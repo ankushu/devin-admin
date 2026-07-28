@@ -56,6 +56,49 @@ export function orgsCommand(): Command {
       }
     });
 
+  cmd
+    .command('update <org>')
+    .description('Update organization settings (display-name, session limit, cycle limit)')
+    .option('--display-name <name>', 'Organization display name')
+    .option('--session-limit <n>', 'Max session ACU limit', Number)
+    .option('--cycle-limit <n>', 'Max cycle ACU limit', Number)
+    .action(async (org: string, opts, thisCmd) => {
+      const ro = rootOpts(thisCmd);
+      const { orgRegistry } = buildContainer();
+      const o = await orgRegistry.resolve(org);
+
+      const body: Record<string, unknown> = {};
+      if (opts.displayName !== undefined) body.name = opts.displayName;
+      if (opts.sessionLimit !== undefined) body.max_session_acu_limit = opts.sessionLimit;
+      if (opts.cycleLimit !== undefined) body.max_cycle_acu_limit = opts.cycleLimit;
+
+      if (Object.keys(body).length === 0) {
+        console.log('No updates specified. Use --display-name, --session-limit, or --cycle-limit.');
+        return;
+      }
+
+      if (ro.dryRun) {
+        console.log(`PATCH /v3/enterprise/organizations/${o.org_id}`);
+        console.log(JSON.stringify(body, null, 2));
+        return;
+      }
+
+      const { organizationsApi } = buildContainer();
+      const updated = await organizationsApi.update(o.org_id, body);
+
+      // Refresh cache after update
+      await orgRegistry.refresh();
+
+      if (ro.json) return renderJson(updated);
+      console.log('Updated.');
+      renderKV([
+        ['org_id', updated.org_id],
+        ['name', updated.name],
+        ['max_session_acu_limit', updated.max_session_acu_limit],
+        ['max_cycle_acu_limit', updated.max_cycle_acu_limit],
+      ]);
+    });
+
   return cmd;
 }
 
