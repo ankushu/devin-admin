@@ -1,10 +1,24 @@
 import type { ConsumptionApi } from '../api/ConsumptionApi.js';
 import type { AcuLimitsApi } from '../api/AcuLimitsApi.js';
+import type { MembersApi } from '../api/MembersApi.js';
 import type { OrgRegistry } from '../orgs/OrgRegistry.js';
 import type { UserResolver } from '../users/UserResolver.js';
 import type { TimeRange } from '../api/ConsumptionApi.js';
 import type { AcusByProduct, ConsumptionDay, OrgAcuLimitResponse, UserAcuLimitResponse } from '../models/types.js';
-import { dateRangeToTimeRange, monthToTimeRange, getCycleForDate } from '../utils/dates.js';
+import { dateRangeToTimeRange, monthToTimeRange, getCycleForDate, getIsoWeekLabel } from '../utils/dates.js';
+import { mapWithConcurrency } from '../utils/concurrency.js';
+import { withRetries } from '../utils/retry.js';
+
+const ACTIVE_USERS_WARNING =
+  'Active users are inferred from ACU consumption only (no bulk active-users or per-tool ' +
+  '[Desktop/CLI/Cloud] API exists). Users who exclusively use non-premium/free models that ' +
+  "don't consume ACUs will not be counted, so these figures may undercount true active users. " +
+  'Users whose consumption fetch still failed after retries are excluded and listed under ' +
+  '"failedUsers" for manual follow-up.';
+
+const ACTIVE_USERS_CONCURRENCY = 8;
+const ACTIVE_USERS_FETCH_RETRIES = 2;
+const ACTIVE_USERS_RETRY_DELAY_MS = 200;
 
 export enum ConsumptionDimension {
   ByProduct = 'by_product',
@@ -58,6 +72,33 @@ export interface DailyTrendRow {
   byProduct: AcusByProduct;
 }
 
+export interface ActiveUserCount {
+  period: string;
+  activeUsers: number;
+}
+
+export interface ActiveUserSummary {
+  user_id: string;
+  email: string | null;
+  name: string | null;
+}
+
+export interface ActiveUsersResult {
+  orgId: string;
+  orgName: string;
+  month: string;
+  isPartialCycle: boolean;
+  totalMembers: number;
+  usersSkipped: number;
+  overallActiveUsers: number;
+  activeUsers: ActiveUserSummary[];
+  failedUsers: ActiveUserSummary[];
+  daily: ActiveUserCount[];
+  weekly: ActiveUserCount[];
+  monthly: ActiveUserCount[];
+  warning: string;
+}
+
 export type MonitorPeriodInput = string | { month: string } | { start: string; end: string };
 
 export class MonitoringService {
@@ -65,7 +106,8 @@ export class MonitoringService {
     private readonly consumptionApi: ConsumptionApi,
     private readonly acuLimitsApi: AcuLimitsApi,
     private readonly orgRegistry: OrgRegistry,
-    private readonly userResolver: UserResolver
+    private readonly userResolver: UserResolver,
+    private readonly membersApi: MembersApi
   ) {}
 
   async monitorOrg(nameOrId: string, period: MonitorPeriodInput): Promise<OrgMonitorResult> {
@@ -154,6 +196,96 @@ export class MonitoringService {
       orgs: orgSummaries.sort((a, b) => b.totalAcus - a.totalAcus),
     };
   }
+
+  // Derives DAU/WAU/MAU for an org from per-user ACU consumption, since the
+  // Devin API has no bulk active-users or per-tool (Desktop/CLI/Cloud)
+  // endpoint — see ACTIVE_USERS_WARNING.
+  async monitorActiveUsers(
+    nameOrId: string,
+    period: MonitorPeriodInput,
+    onProgress?: (done: number, total: number) => void
+  ): Promise<ActiveUsersResult> {
+    const org = await this.orgRegistry.resolve(nameOrId);
+    const { range, month, isPartialCycle } = resolvePeriod(period);
+    const members = await this.membersApi.listOrgMembers(org.org_id);
+
+    const results = await mapWithConcurrency(
+      members,
+      ACTIVE_USERS_CONCURRENCY,
+      (member) =>
+        withRetries(
+          () => this.consumptionApi.getUserDaily(member.user_id, range),
+          ACTIVE_USERS_FETCH_RETRIES,
+          ACTIVE_USERS_RETRY_DELAY_MS
+        ),
+      onProgress
+    );
+
+    const activeDatesByUser = new Map<string, Set<string>>();
+    const failedUsers: ActiveUserSummary[] = [];
+
+    results.forEach((result, index) => {
+      const member = members[index];
+      if (result.status === 'rejected') {
+        failedUsers.push({ user_id: member.user_id, email: member.email, name: member.name });
+        return;
+      }
+      const activeDates = new Set<string>();
+      for (const day of result.value.consumption_by_date) {
+        if (day.acus > 0) activeDates.add(new Date(day.date * 1000).toISOString().slice(0, 10));
+      }
+      if (activeDates.size > 0) activeDatesByUser.set(member.user_id, activeDates);
+    });
+
+    const daily = countUsersByPeriod(activeDatesByUser, (date) => date);
+    const weekly = countUsersByPeriod(activeDatesByUser, getIsoWeekLabel);
+    const monthly = countUsersByPeriod(activeDatesByUser, (date) => date.slice(0, 7));
+
+    const activeUsers: ActiveUserSummary[] = members
+      .filter((m) => activeDatesByUser.has(m.user_id))
+      .map((m) => ({ user_id: m.user_id, email: m.email, name: m.name }));
+
+    return {
+      orgId: org.org_id,
+      orgName: org.name,
+      month,
+      isPartialCycle,
+      totalMembers: members.length,
+      usersSkipped: failedUsers.length,
+      overallActiveUsers: activeUsers.length,
+      activeUsers,
+      failedUsers,
+      daily,
+      weekly,
+      monthly,
+      warning: ACTIVE_USERS_WARNING,
+    };
+  }
+}
+
+// Groups each user's active dates by a period key (day/ISO-week/month) and
+// counts the distinct users active in each period.
+function countUsersByPeriod(
+  activeDatesByUser: Map<string, Set<string>>,
+  keyFor: (date: string) => string
+): ActiveUserCount[] {
+  const usersByPeriod = new Map<string, Set<string>>();
+
+  for (const [userId, dates] of activeDatesByUser) {
+    for (const date of dates) {
+      const key = keyFor(date);
+      let bucket = usersByPeriod.get(key);
+      if (!bucket) {
+        bucket = new Set<string>();
+        usersByPeriod.set(key, bucket);
+      }
+      bucket.add(userId);
+    }
+  }
+
+  return Array.from(usersByPeriod.entries())
+    .map(([period, users]) => ({ period, activeUsers: users.size }))
+    .sort((a, b) => a.period.localeCompare(b.period));
 }
 
 function aggregate(days: ConsumptionDay[]): { total: number; byProduct: AcusByProduct; cycles: CycleConsumption[] } {
