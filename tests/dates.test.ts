@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dateRangeToTimeRange, monthToTimeRange } from '../src/utils/dates.js';
+import { dateRangeToTimeRange, monthToTimeRange, getIsoWeekLabel } from '../src/utils/dates.js';
 
 describe('monthToTimeRange', () => {
   it('returns unix timestamps at 08:00 UTC starting from the 18th for a given month', () => {
@@ -52,5 +52,29 @@ describe('dateRangeToTimeRange', () => {
   it('throws on invalid date format', () => {
     expect(() => dateRangeToTimeRange('2026-6-01', '2026-06-10')).toThrow('YYYY-MM-DD');
     expect(() => dateRangeToTimeRange('06-01-2026', '2026-06-10')).toThrow('YYYY-MM-DD');
+  });
+});
+
+describe('getIsoWeekLabel', () => {
+  it('handles a plain mid-year date', () => {
+    expect(getIsoWeekLabel('2007-01-01')).toBe('2007-W01');
+  });
+
+  it('assigns a date to the following ISO year when its week belongs to it', () => {
+    // Dec 29, 2008 (Mon) starts the week containing Jan 1, 2009 (Thu).
+    expect(getIsoWeekLabel('2008-12-29')).toBe('2009-W01');
+  });
+
+  it('assigns a date to the previous ISO year when its week belongs to it', () => {
+    // Jan 1, 2005 (Sat) falls in the last ISO week of 2004.
+    expect(getIsoWeekLabel('2005-01-01')).toBe('2004-W53');
+  });
+
+  it('handles a year with a 53rd ISO week', () => {
+    expect(getIsoWeekLabel('2010-01-03')).toBe('2009-W53');
+  });
+
+  it('groups consecutive days in the same Mon-Sun week together', () => {
+    expect(getIsoWeekLabel('2026-06-15')).toBe(getIsoWeekLabel('2026-06-16'));
   });
 });

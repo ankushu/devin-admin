@@ -1,6 +1,8 @@
 import type { IHttpClient, RequestOptions } from './IHttpClient.js';
 import type { PaginatedResponse } from '../models/types.js';
 
+const DEFAULT_TIMEOUT_MS = 30000;
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -14,7 +16,8 @@ export class ApiError extends Error {
 export class DevinHttpClient implements IHttpClient {
   constructor(
     private readonly baseUrl: string,
-    private readonly token: string
+    private readonly token: string,
+    private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS
   ) {}
 
   async request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
@@ -27,15 +30,31 @@ export class DevinHttpClient implements IHttpClient {
       }
     }
 
-    const res = await fetch(url.toString(), {
-      method,
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-    });
+    // Guard against requests that never resolve (e.g. a stalled connection) —
+    // without this a single stuck call can hang commands indefinitely.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    let res: Response;
+    try {
+      res = await fetch(url.toString(), {
+        method,
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`${method} ${path} timed out after ${this.timeoutMs}ms`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');

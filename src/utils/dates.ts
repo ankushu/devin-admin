@@ -87,6 +87,21 @@ export function formatMonth(month: string): string {
   return `${monthFormatter.format(startD)} (${formatter.format(startD)} - ${formatter.format(endD)})`;
 }
 
+// ISO-8601 week label ("YYYY-Www", Monday-start week) for a "YYYY-MM-DD" date.
+export function getIsoWeekLabel(dateStr: string): string {
+  const { year, mon, day } = parseYyyyMmDd(dateStr, 'date');
+  const d = new Date(Date.UTC(year, mon - 1, day));
+
+  // Shift to the Thursday of this ISO week — the ISO week/year are defined
+  // by whichever Gregorian year that Thursday falls in.
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const isoYear = d.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(isoYear, 0, 1));
+  const weekNumber = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+
+  return `${isoYear}-W${String(weekNumber).padStart(2, '0')}`;
+}
+
 export function getCycleForDate(dateStr: string): string {
   const { year, mon, day } = parseYyyyMmDd(dateStr, 'date');
   const startDay = getConfig().BILLING_CYCLE_START_DAY;

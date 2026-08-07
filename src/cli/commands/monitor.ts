@@ -155,7 +155,99 @@ export function monitorCommand(): Command {
       );
     });
 
+  registerActiveUsersCommand(cmd, {
+    name: 'dau',
+    label: 'Daily Active Users (DAU)',
+    granularity: 'daily',
+    periodHeader: 'Date',
+  });
+  registerActiveUsersCommand(cmd, {
+    name: 'wau',
+    label: 'Weekly Active Users (WAU, ISO week)',
+    granularity: 'weekly',
+    periodHeader: 'Week',
+  });
+  registerActiveUsersCommand(cmd, {
+    name: 'mau',
+    label: 'Monthly Active Users (MAU)',
+    granularity: 'monthly',
+    periodHeader: 'Month',
+  });
+
   return cmd;
+}
+
+interface ActiveUsersCommandSpec {
+  name: 'dau' | 'wau' | 'mau';
+  label: string;
+  granularity: 'daily' | 'weekly' | 'monthly';
+  periodHeader: string;
+}
+
+function registerActiveUsersCommand(cmd: Command, spec: ActiveUsersCommandSpec): void {
+  cmd
+    .command(`${spec.name} <org>`)
+    .description(
+      `Show ${spec.label} for an org.\n` +
+        '  NOTE: derived from per-user ACU consumption — there is no bulk active-users or\n' +
+        '  per-tool (Desktop/CLI/Cloud) API. Users on non-premium/free models that consume\n' +
+        '  no ACUs will not be counted, so these figures may undercount true active users.'
+    )
+    .option('--month <YYYY-MM>', 'billing month')
+    .option('--start <YYYY-MM-DD>', 'start date (inclusive)')
+    .option('--end <YYYY-MM-DD>', 'end date (inclusive)')
+    .action(async (org: string, opts, thisCmd) => {
+      const isJson = Boolean(rootOpts(thisCmd).json);
+      const { monitoringService } = buildContainer();
+      const period = resolvePeriodOptions(opts);
+
+      if (!isJson) process.stderr.write('Resolving org and listing members...\n');
+
+      const onProgress = isJson
+        ? undefined
+        : (done: number, total: number) => {
+            process.stderr.write(`\rFetching consumption for org members... ${done}/${total}`);
+            if (done === total) process.stderr.write('\n');
+          };
+
+      const result = await monitoringService.monitorActiveUsers(org, period, onProgress);
+
+      if (isJson) return renderJson(result);
+
+      console.log(`\nOrg: ${result.orgName} (${result.orgId})`);
+      console.log(`Period: ${formatPeriodLabel(result.month)}`);
+      console.log();
+      renderKV([
+        ['Total org members', result.totalMembers],
+        ['Unique active users (period)', result.overallActiveUsers],
+        ['Users skipped (fetch errors)', result.usersSkipped],
+      ]);
+
+      console.log(`\n${spec.label}:`);
+      renderTable(
+        result[spec.granularity].map((row) => ({ period: row.period, active: row.activeUsers })),
+        ['period', 'active'],
+        [spec.periodHeader, 'Active Users']
+      );
+
+      console.log('\nActive users:');
+      renderTable(
+        result.activeUsers.map((u) => ({ user_id: u.user_id, email: u.email, name: u.name })),
+        ['user_id', 'email', 'name'],
+        ['User ID', 'Email', 'Name']
+      );
+
+      if (result.failedUsers.length > 0) {
+        console.log('\nFailed to fetch consumption after retries (needs manual follow-up):');
+        renderTable(
+          result.failedUsers.map((u) => ({ user_id: u.user_id, email: u.email, name: u.name })),
+          ['user_id', 'email', 'name'],
+          ['User ID', 'Email', 'Name']
+        );
+      }
+
+      console.log(`\nWARNING: ${result.warning}`);
+    });
 }
 
 function productBreakdownRows(byProduct: AcusByProduct): Record<string, unknown>[] {

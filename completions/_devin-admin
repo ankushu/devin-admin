@@ -57,6 +57,7 @@ _devin_admin_orgs() {
     'get:get a single org'
     'list:list cached orgs'
     'refresh:force refresh from API'
+    'update:update organization settings'
   )
 
   _arguments -C \
@@ -74,6 +75,14 @@ _devin_admin_orgs() {
             '--json[output raw JSON instead of tables]' \
             '--dry-run[print the intended API request without executing it]' \
             '--refresh[force refresh from API]'
+          ;;
+        update)
+          _arguments \
+            '--json[output raw JSON instead of tables]' \
+            '--dry-run[print the intended API request without executing it]' \
+            '--display-name=[organization display name]:name' \
+            '--session-limit=[max session ACU limit]:n' \
+            '--cycle-limit=[max cycle ACU limit]:n'
           ;;
       esac
       ;;
@@ -200,6 +209,9 @@ _devin_admin_monitor() {
     "org:enterprise-wide ACUs vs an org's cycle limit"
     'user:per-user ACU breakdown by product'
     'all-orgs:show ACU consumption for all organizations with product breakdown'
+    'dau:daily active users for an org'
+    'wau:weekly active users for an org'
+    'mau:monthly active users for an org'
   )
 
   _arguments -C \
@@ -212,7 +224,7 @@ _devin_admin_monitor() {
     subcmd) _describe 'monitor subcommand' subcommands ;;
     args)
       case $line[1] in
-        org|user|all-orgs)
+        org|user|all-orgs|dau|wau|mau)
           _arguments \
             '--json[output raw JSON instead of tables]' \
             '--dry-run[print the intended API request without executing it]' \

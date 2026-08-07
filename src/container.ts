@@ -12,6 +12,7 @@ import { MonitoringService } from './services/MonitoringService.js';
 
 export interface Container {
   orgRegistry: OrgRegistry;
+  organizationsApi: OrganizationsApi;
   acuLimitService: AcuLimitService;
   membershipService: MembershipService;
   monitoringService: MonitoringService;
@@ -19,7 +20,7 @@ export interface Container {
 
 export function buildContainer(): Container {
   const config = getConfig();
-  const http = new DevinHttpClient(config.DEVIN_API_BASE_URL, config.DEVIN_API_TOKEN);
+  const http = new DevinHttpClient(config.DEVIN_API_BASE_URL, config.DEVIN_API_TOKEN, config.REQUEST_TIMEOUT_MS);
 
   const orgsApi = new OrganizationsApi(http);
   const membersApi = new MembersApi(http);
@@ -33,8 +34,9 @@ export function buildContainer(): Container {
 
   return {
     orgRegistry,
+    organizationsApi: orgsApi,
     acuLimitService,
     membershipService: new MembershipService(membersApi, orgRegistry, userResolver, acuLimitService),
-    monitoringService: new MonitoringService(consumptionApi, acuLimitsApi, orgRegistry, userResolver),
+    monitoringService: new MonitoringService(consumptionApi, acuLimitsApi, orgRegistry, userResolver, membersApi),
   };
 }

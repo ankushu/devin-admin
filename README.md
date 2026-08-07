@@ -121,12 +121,25 @@ devin-admin monitor user <user_id> --month 2026-06
 devin-admin monitor org <org> --start 2026-06-01 --end 2026-06-30
 devin-admin monitor user <user_id> --start 2026-06-01 --end 2026-06-30
 
+# Daily/weekly/monthly active users for an org
+devin-admin monitor dau <org> --month 2026-06
+devin-admin monitor wau <org> --month 2026-06
+devin-admin monitor mau <org> --month 2026-06
+
 # Machine-readable output
 devin-admin --json monitor user <user_id> --month 2026-06
 ```
 
-`monitor org` and `monitor user` accept either `--month <YYYY-MM>` or `--start <YYYY-MM-DD> --end <YYYY-MM-DD>`.
-Do not mix both modes. In date range mode, `--start` and `--end` are both required and both inclusive.
+`monitor org`, `monitor user`, `monitor dau`, `monitor wau`, and `monitor mau` accept either `--month <YYYY-MM>`
+or `--start <YYYY-MM-DD> --end <YYYY-MM-DD>`. Do not mix both modes. In date range mode, `--start` and `--end`
+are both required and both inclusive.
+
+`monitor dau`/`wau`/`mau <org>` derive daily/ISO-week/calendar-month distinct active-user counts from
+per-user ACU consumption — see Known gap #4 below. They print progress to stderr (one API call per org
+member) and each individual request times out after `REQUEST_TIMEOUT_MS` (default 30s, configurable in
+`.env`) instead of hanging indefinitely. A per-user fetch that fails is retried up to 2 more times; if it
+still fails, that user is excluded from the active-user counts and printed in a separate "Failed to fetch
+consumption after retries" table (and a `failedUsers` array in `--json` output) so it can be checked manually.
 
 ---
 
@@ -137,6 +150,8 @@ Do not mix both modes. In date range mode, `--start` and `--end` are both requir
 2. **Per-org consumption** — The Devin API only exposes enterprise-wide daily consumption; there is no per-org filter. `monitor org` shows enterprise totals alongside the org's cycle limit. Per-user data is fully available with per-product breakdown.
 
 3. **Per-model consumption** — The API returns ACUs by product (`devin`, `cascade`, `terminal`, `review`), not by LLM model. Per-model data would require a future API addition.
+
+4. **Active users (`monitor dau`/`wau`/`mau`)** — There is no bulk active-users endpoint and no per-tool (Desktop/CLI/Cloud) consumption breakdown. These commands work around this by listing org members and calling the per-user consumption endpoint for each one (N API calls per run, retried up to 2x on failure), counting a user as active on a day if their ACUs for that day are > 0. This undercounts users who exclusively use non-premium/free models that don't consume ACUs — the commands always print a warning to this effect, and separately list any users whose fetch still failed after retries for manual follow-up.
 
 ---
 
