@@ -4,6 +4,7 @@ import { renderKV, renderTable, renderJson } from '../../utils/output.js';
 import { formatMonth } from '../../utils/dates.js';
 import { pctUsed, pctOfTotal } from '../../services/MonitoringService.js';
 import type { AcusByProduct } from '../../models/types.js';
+import { requireAtLeastOne, requireMutuallyExclusive, requireTogether } from '../../utils/cliOptions.js';
 
 export function monitorCommand(): Command {
   const cmd = new Command('monitor').description('Monitor ACU consumption');
@@ -308,15 +309,13 @@ function resolvePeriodOptions(opts: { month?: string; start?: string; end?: stri
   const hasStart = Boolean(start);
   const hasEnd = Boolean(end);
 
-  if (hasMonth && (hasStart || hasEnd)) {
-    throw new Error('Use either --month or --start/--end, not both');
-  }
+  requireMutuallyExclusive(opts, ['month', 'start'], 'Use either --month or --start/--end, not both');
+  requireMutuallyExclusive(opts, ['month', 'end'], 'Use either --month or --start/--end, not both');
+  requireTogether(opts, ['start', 'end'], 'Both --start and --end are required together');
+  requireAtLeastOne(opts, ['month', 'start'], 'Provide either --month <YYYY-MM> or --start <YYYY-MM-DD> --end <YYYY-MM-DD>');
+
   if (hasMonth) return { month: month! };
-  if (hasStart !== hasEnd) {
-    throw new Error('Both --start and --end are required together');
-  }
-  if (hasStart && hasEnd) return { start: start!, end: end! };
-  throw new Error('Provide either --month <YYYY-MM> or --start <YYYY-MM-DD> --end <YYYY-MM-DD>');
+  return { start: start!, end: end! };
 }
 
 function formatPeriodLabel(period: string): string {
