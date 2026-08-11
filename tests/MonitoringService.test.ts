@@ -58,8 +58,8 @@ describe('MonitoringService', () => {
       const svc2 = new MonitoringService(api, makeAcuApi(), makeRegistry(), makeUserResolver(), makeMembersApi());
       await svc2.monitorOrg('Alpha', '2026-06');
       expect(vi.mocked(api.getOrgDaily)).toHaveBeenCalledWith('org-1', {
-        time_after: Math.floor(new Date('2026-06-18T08:00:00Z').getTime() / 1000),
-        time_before: Math.floor(new Date('2026-07-18T08:00:00Z').getTime() / 1000),
+        time_after: Math.floor(new Date('2026-06-19T08:00:00Z').getTime() / 1000),
+        time_before: Math.floor(new Date('2026-07-19T08:00:00Z').getTime() / 1000),
       });
     });
 
