@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { buildContainer } from '../../container.js';
 import { renderKV, renderJson } from '../../utils/output.js';
+import { requireAtLeastOne } from '../../utils/cliOptions.js';
 
 export function acuCommand(): Command {
   const cmd = new Command('acu').description('Manage ACU limits');
@@ -23,9 +24,10 @@ export function acuCommand(): Command {
   cmd
     .command('set-org <org>')
     .description('Set ACU limits for an organization')
-    .requiredOption('--local <n>', 'local agent cycle ACU limit', Number)
+    .option('--local <n>', 'local agent cycle ACU limit', Number)
     .option('--cloud <n>', 'cloud agent cycle ACU limit', Number)
     .action(async (org: string, opts, thisCmd) => {
+      requireAtLeastOne(opts, ['local', 'cloud']);
       const ro = rootOpts(thisCmd);
       const { acuLimitService } = buildContainer();
       const result = await acuLimitService.setOrg(
