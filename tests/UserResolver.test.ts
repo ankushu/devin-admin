@@ -25,6 +25,13 @@ describe('UserResolver', () => {
     expect(membersApi.listEnterpriseMembers).not.toHaveBeenCalled();
   });
 
+  it('passes an email|… id through untouched too (ids aren\'t all one prefix)', async () => {
+    const resolver = new UserResolver(membersApi, 'servicenow.com');
+    const id = await resolver.resolveId('email|69846cd92a96a7c11b75e55b');
+    expect(id).toBe('email|69846cd92a96a7c11b75e55b');
+    expect(membersApi.listEnterpriseMembers).not.toHaveBeenCalled();
+  });
+
   it('looks up an email as-is', async () => {
     const resolver = new UserResolver(membersApi, 'servicenow.com');
     const id = await resolver.resolveId('ankush.agrawal@servicenow.com');
@@ -54,5 +61,18 @@ describe('UserResolver', () => {
     vi.mocked(membersApi.listEnterpriseMembers).mockResolvedValue([]);
     const resolver = new UserResolver(membersApi, 'servicenow.com');
     await expect(resolver.resolveId('nobody@servicenow.com')).rejects.toThrow(/No user found/);
+  });
+
+  describe('toEmail', () => {
+    it('converts a name without resolving it (no network call)', () => {
+      const resolver = new UserResolver(membersApi, 'servicenow.com');
+      expect(resolver.toEmail('Ankush Agrawal')).toBe('ankush.agrawal@servicenow.com');
+      expect(membersApi.listEnterpriseMembers).not.toHaveBeenCalled();
+    });
+
+    it('throws a clear error when no domain is configured', () => {
+      const resolver = new UserResolver(membersApi);
+      expect(() => resolver.toEmail('Ankush Agrawal')).toThrow(/USER_EMAIL_DOMAIN/);
+    });
   });
 });

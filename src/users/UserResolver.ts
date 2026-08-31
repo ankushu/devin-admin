@@ -1,26 +1,27 @@
 import type { MembersApi } from '../api/MembersApi.js';
 
-const USER_ID_PREFIX = /^user-/;
-
 export class UserResolver {
   constructor(
     private readonly membersApi: MembersApi,
     private readonly emailDomain?: string
   ) {}
 
-  // Accepts a user's email, an explicit user_id (user-…), or a full name.
+  // Accepts a user's email, an explicit user_id, or a full name.
   // Email → queries listEnterpriseMembers and returns the user_id.
-  // user_id (user-…) → returned as-is (no network call).
-  // Full name (e.g. "Ankush Agrawal") → converted to "ankush.agrawal@<domain>"
-  // using USER_EMAIL_DOMAIN, then resolved the same way as an email.
+  // A full name (e.g. "Ankush Agrawal", detected by whitespace) → converted to
+  // "ankush.agrawal@<domain>" using USER_EMAIL_DOMAIN, then resolved like an email.
+  // Anything else is treated as an explicit user_id and returned as-is (no network
+  // call) — real ids come in more than one format (e.g. "user-…", "email|…"), so
+  // there's no reliable prefix to match on.
   async resolveId(input: string): Promise<string> {
     const trimmed = input.trim();
     if (trimmed.includes('@')) return this.resolveByEmail(trimmed);
-    if (USER_ID_PREFIX.test(trimmed)) return trimmed;
-    return this.resolveByEmail(this.nameToEmail(trimmed));
+    if (/\s/.test(trimmed)) return this.resolveByEmail(this.toEmail(trimmed));
+    return trimmed;
   }
 
-  private nameToEmail(name: string): string {
+  // Converts a full name to an email using USER_EMAIL_DOMAIN, without resolving it.
+  toEmail(name: string): string {
     if (!this.emailDomain) {
       throw new Error(
         `Cannot resolve "${name}" as a name — set USER_EMAIL_DOMAIN in .env (e.g. servicenow.com) ` +

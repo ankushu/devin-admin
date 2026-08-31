@@ -40,7 +40,10 @@ function makeRegistry(): OrgRegistry {
 }
 
 function makeUserResolver(resolvedId = 'user-1'): UserResolver {
-  return { resolveId: vi.fn().mockResolvedValue(resolvedId) } as unknown as UserResolver;
+  return {
+    resolveId: vi.fn().mockResolvedValue(resolvedId),
+    toEmail: vi.fn((name: string) => `${name.toLowerCase().split(/\s+/).join('.')}@example.com`),
+  } as unknown as UserResolver;
 }
 
 function makeAcuLimitService(): AcuLimitService {
@@ -59,6 +62,40 @@ describe('MembershipService', () => {
     api = makeMembersApi();
     acuLimitService = makeAcuLimitService();
     svc = new MembershipService(api, makeRegistry(), makeUserResolver(), acuLimitService);
+  });
+
+  describe('getUser', () => {
+    it('uses the server-side email filter for an email input (no full listing)', async () => {
+      const user = await svc.getUser('alice@example.com');
+      expect(user).toEqual(USER);
+      expect(api.listEnterpriseMembers).toHaveBeenCalledTimes(1);
+      expect(api.listEnterpriseMembers).toHaveBeenCalledWith('alice@example.com');
+    });
+
+    it('converts a full name to an email via UserResolver and filters by it', async () => {
+      const resolver = makeUserResolver();
+      const svc2 = new MembershipService(api, makeRegistry(), resolver, acuLimitService);
+      await svc2.getUser('Alice Example');
+      expect(resolver.toEmail).toHaveBeenCalledWith('Alice Example');
+      expect(api.listEnterpriseMembers).toHaveBeenCalledTimes(1);
+      expect(api.listEnterpriseMembers).toHaveBeenCalledWith('alice.example@example.com');
+    });
+
+    it('falls back to an unfiltered listing only for a bare user_id', async () => {
+      const user = await svc.getUser('user-1');
+      expect(user).toEqual(USER);
+      expect(api.listEnterpriseMembers).toHaveBeenCalledTimes(1);
+      expect(api.listEnterpriseMembers).toHaveBeenCalledWith();
+    });
+
+    it('throws when no user matches the resolved email', async () => {
+      vi.mocked(api.listEnterpriseMembers).mockResolvedValue([]);
+      await expect(svc.getUser('nobody@example.com')).rejects.toThrow('No user found with email');
+    });
+
+    it('throws when no user matches the raw id', async () => {
+      await expect(svc.getUser('user-missing')).rejects.toThrow('No user found with id');
+    });
   });
 
   describe('listOrgUsers', () => {

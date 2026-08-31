@@ -16,10 +16,25 @@ export class MembershipService {
   ) {}
 
   async getUser(input: string): Promise<import('../models/types.js').User> {
-    const userId = await this.userResolver.resolveId(input);
+    const trimmed = input.trim();
+    // Resolve to an email whenever possible so we can use the server-side email
+    // filter (fast); only fall back to an unfiltered full-enterprise listing for a
+    // bare user_id, since the API has no id filter.
+    const email = trimmed.includes('@')
+      ? trimmed
+      : /\s/.test(trimmed)
+        ? this.userResolver.toEmail(trimmed)
+        : undefined;
+
+    if (email) {
+      const users = await this.membersApi.listEnterpriseMembers(email);
+      if (users.length === 0) throw new Error(`No user found with email: ${email}`);
+      return users[0];
+    }
+
     const all = await this.membersApi.listEnterpriseMembers();
-    const user = all.find((u) => u.user_id === userId);
-    if (!user) throw new Error(`No user found with id: ${userId}`);
+    const user = all.find((u) => u.user_id === trimmed);
+    if (!user) throw new Error(`No user found with id: ${trimmed}`);
     return user;
   }
 
