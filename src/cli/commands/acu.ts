@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { buildContainer } from '../../container.js';
 import { renderKV, renderJson } from '../../utils/output.js';
 import { requireAtLeastOne } from '../../utils/cliOptions.js';
+import { formatBillingOrg } from '../../utils/billingOrg.js';
 
 export function acuCommand(): Command {
   const cmd = new Command('acu').description('Manage ACU limits');
@@ -60,12 +61,12 @@ export function acuCommand(): Command {
     .command('get-user <user>')
     .description('Get ACU limits for a user (user_id)')
     .action(async (user: string, _opts, thisCmd) => {
-      const { acuLimitService } = buildContainer();
+      const { acuLimitService, orgRegistry } = buildContainer();
       const limit = await acuLimitService.getUser(user);
       if (rootOpts(thisCmd).json) return renderJson(limit);
       renderKV([
         ['local_agent.cycle_acu_limit', limit.local_agent?.cycle_acu_limit],
-        ['local_agent.billing_org_id', limit.local_agent?.billing_org_id],
+        ['local_agent.billing_org', await formatBillingOrg(orgRegistry, limit.local_agent?.billing_org_id)],
       ]);
     });
 
@@ -76,7 +77,7 @@ export function acuCommand(): Command {
     .option('--billing-org <org>', 'billing org name or org_id')
     .action(async (user: string, opts, thisCmd) => {
       const ro = rootOpts(thisCmd);
-      const { acuLimitService } = buildContainer();
+      const { acuLimitService, orgRegistry } = buildContainer();
       const result = await acuLimitService.setUser(
         user,
         { local: opts.local as number, billingOrg: opts.billingOrg as string | undefined },
@@ -87,7 +88,7 @@ export function acuCommand(): Command {
       console.log('Updated.');
       if (result) renderKV([
         ['local_agent.cycle_acu_limit', result.local_agent?.cycle_acu_limit],
-        ['local_agent.billing_org_id', result.local_agent?.billing_org_id],
+        ['local_agent.billing_org', await formatBillingOrg(orgRegistry, result.local_agent?.billing_org_id)],
       ]);
     });
 

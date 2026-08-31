@@ -61,6 +61,7 @@ export interface UserMonitorResult {
   isPartialCycle: boolean;
   totalAcus: number;
   localLimit: number | undefined;
+  billingOrgId: string | undefined;
   cycles: CycleConsumption[];
   byProduct: AcusByProduct;
   dailyTrend: DailyTrendRow[];
@@ -154,6 +155,7 @@ export class MonitoringService {
       isPartialCycle,
       totalAcus: consumption.total_acus,
       localLimit: limit.local_agent?.cycle_acu_limit,
+      billingOrgId: limit.local_agent?.billing_org_id,
       cycles,
       byProduct,
       dailyTrend,

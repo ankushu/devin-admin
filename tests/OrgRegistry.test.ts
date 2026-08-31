@@ -73,4 +73,16 @@ describe('OrgRegistry', () => {
     const registry = new OrgRegistry(makeApi(), './data/orgs.json');
     await expect(registry.resolve('Unknown')).rejects.toThrow('not found');
   });
+
+  it('resolveName returns the name for a known org id', async () => {
+    vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(ORGS) as unknown as Buffer);
+    const registry = new OrgRegistry(makeApi(), './data/orgs.json');
+    await expect(registry.resolveName('org-2')).resolves.toBe('Beta');
+  });
+
+  it('resolveName returns undefined for an unknown org id, without throwing', async () => {
+    vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(ORGS) as unknown as Buffer);
+    const registry = new OrgRegistry(makeApi(), './data/orgs.json');
+    await expect(registry.resolveName('org-missing')).resolves.toBeUndefined();
+  });
 });

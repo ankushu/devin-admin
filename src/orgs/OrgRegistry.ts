@@ -32,6 +32,13 @@ export class OrgRegistry implements IOrgRegistry {
     return orgs;
   }
 
+  // Lenient lookup for display purposes — returns undefined instead of throwing
+  // when the org isn't found (e.g. a stale billing_org_id).
+  async resolveName(orgId: string): Promise<string | undefined> {
+    const orgs = await this.get();
+    return orgs.find((o) => o.org_id === orgId)?.name;
+  }
+
   async resolve(nameOrId: string): Promise<Organization> {
     const orgs = await this.get();
     const found = orgs.find((o) => o.org_id === nameOrId || o.name === nameOrId);

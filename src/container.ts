@@ -28,7 +28,7 @@ export function buildContainer(): Container {
   const consumptionApi = new ConsumptionApi(http);
 
   const orgRegistry = new OrgRegistry(orgsApi, config.ORG_CACHE_PATH);
-  const userResolver = new UserResolver(membersApi);
+  const userResolver = new UserResolver(membersApi, config.USER_EMAIL_DOMAIN);
 
   const acuLimitService = new AcuLimitService(acuLimitsApi, orgRegistry, userResolver);
 
