@@ -9,6 +9,7 @@ const ConfigSchema = z.object({
   ORG_CACHE_PATH: z.string().default('./data/orgs.json'),
   BILLING_CYCLE_START_DAY: z.coerce.number().min(1).max(31).default(19),
   REQUEST_TIMEOUT_MS: z.coerce.number().min(1000).default(30000),
+  USER_EMAIL_DOMAIN: z.string().min(1).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

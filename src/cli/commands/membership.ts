@@ -3,6 +3,7 @@ import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { buildContainer } from '../../container.js';
 import { renderKV, renderJson, renderTable } from '../../utils/output.js';
+import { formatBillingOrg } from '../../utils/billingOrg.js';
 
 export function membershipCommand(): Command {
   const cmd = new Command('membership').description('Manage user org memberships');
@@ -12,13 +13,16 @@ export function membershipCommand(): Command {
     .description('Show all details for a user (email or user_id)')
     .action(async (user: string, _opts, thisCmd) => {
       const ro = rootOpts(thisCmd);
-      const { membershipService } = buildContainer();
+      const { membershipService, acuLimitService, orgRegistry } = buildContainer();
       const u = await membershipService.getUser(user);
       if (ro.json) return renderJson(u);
+      const billingOrgId = (await acuLimitService.getUser(u.user_id).catch(() => undefined))
+        ?.local_agent?.billing_org_id;
       renderKV([
         ['user_id', u.user_id],
         ['email', u.email],
         ['name', u.name],
+        ['billing_org', await formatBillingOrg(orgRegistry, billingOrgId)],
       ]);
       const orgRoles = (u.role_assignments ?? []).filter(
         (r) => r.role.role_type === 'org' && r.org_id
@@ -27,7 +31,6 @@ export function membershipCommand(): Command {
         (r) => r.role.role_type === 'enterprise'
       );
       if (orgRoles.length > 0) {
-        const { orgRegistry } = buildContainer();
         const orgs = await orgRegistry.get().catch(() => []);
         const nameMap = new Map(orgs.map((o) => [o.org_id, o.name]));
         console.log('\n  Org memberships:');
@@ -74,7 +77,7 @@ export function membershipCommand(): Command {
     .requiredOption('--billing-org <org>', 'billing org name or org_id')
     .action(async (user: string, opts, thisCmd) => {
       const ro = rootOpts(thisCmd);
-      const { acuLimitService } = buildContainer();
+      const { acuLimitService, orgRegistry } = buildContainer();
       const result = await acuLimitService.setBillingOrg(
         user,
         opts.billingOrg as string,
@@ -85,7 +88,7 @@ export function membershipCommand(): Command {
       console.log('Updated.');
       if (result) renderKV([
         ['local_agent.cycle_acu_limit', result.local_agent?.cycle_acu_limit],
-        ['local_agent.billing_org_id', result.local_agent?.billing_org_id],
+        ['local_agent.billing_org', await formatBillingOrg(orgRegistry, result.local_agent?.billing_org_id)],
       ]);
     });
 

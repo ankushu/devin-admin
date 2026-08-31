@@ -15,15 +15,11 @@ export class MembershipService {
     private readonly acuLimitService: AcuLimitService
   ) {}
 
-  async getUser(emailOrId: string): Promise<import('../models/types.js').User> {
-    if (emailOrId.includes('@')) {
-      const users = await this.membersApi.listEnterpriseMembers(emailOrId);
-      if (users.length === 0) throw new Error(`No user found with email: ${emailOrId}`);
-      return users[0];
-    }
+  async getUser(input: string): Promise<import('../models/types.js').User> {
+    const userId = await this.userResolver.resolveId(input);
     const all = await this.membersApi.listEnterpriseMembers();
-    const user = all.find((u) => u.user_id === emailOrId);
-    if (!user) throw new Error(`No user found with id: ${emailOrId}`);
+    const user = all.find((u) => u.user_id === userId);
+    if (!user) throw new Error(`No user found with id: ${userId}`);
     return user;
   }
 

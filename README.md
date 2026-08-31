@@ -16,9 +16,15 @@ Copy `.env.example` to `.env` and fill in your token:
 DEVIN_API_TOKEN=<your token>
 DEVIN_API_BASE_URL=https://api.devin.com/
 ORG_CACHE_PATH=./data/orgs.json
+USER_EMAIL_DOMAIN=servicenow.com
 ```
 
 The `.env` file is read automatically from wherever you run `devin-admin`.
+
+`USER_EMAIL_DOMAIN` is optional and enables typing a person's full name (e.g. `"Ankush Agrawal"`)
+instead of their email for any `<user>` argument — it's lowercased, spaces become dots, and the
+domain is appended (`ankush.agrawal@servicenow.com`) before the usual email lookup. Without it set,
+name-based input raises an error asking for an email or `user-…` id instead.
 
 ## Usage
 
@@ -31,7 +37,7 @@ devin-admin <command> [subcommand] [options]
 | Argument | Accepted values | Resolution |
 |---|---|---|
 | `<org>` | Org name **or** `org-…` id | Resolved via local cache (`orgs list`) |
-| `<user>` | User email **or** `user-…` id | Email → looked up via enterprise members API |
+| `<user>` | User email, `user-…` id, **or** full name | Email → looked up via enterprise members API; full name → converted to `<domain>`-suffixed email first (needs `USER_EMAIL_DOMAIN`) |
 
 ### Global flags
 

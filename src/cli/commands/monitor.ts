@@ -5,6 +5,7 @@ import { formatMonth } from '../../utils/dates.js';
 import { pctUsed, pctOfTotal } from '../../services/MonitoringService.js';
 import type { AcusByProduct } from '../../models/types.js';
 import { requireAtLeastOne, requireMutuallyExclusive, requireTogether } from '../../utils/cliOptions.js';
+import { formatBillingOrg } from '../../utils/billingOrg.js';
 
 export function monitorCommand(): Command {
   const cmd = new Command('monitor').description('Monitor ACU consumption');
@@ -71,7 +72,7 @@ export function monitorCommand(): Command {
     .option('--end <YYYY-MM-DD>', 'end date (inclusive)')
     .action(async (user: string, opts, thisCmd) => {
       const isJson = Boolean(rootOpts(thisCmd).json);
-      const { monitoringService } = buildContainer();
+      const { monitoringService, orgRegistry } = buildContainer();
       const period = resolvePeriodOptions(opts);
       const result = await monitoringService.monitorUser(user, period);
 
@@ -83,6 +84,7 @@ export function monitorCommand(): Command {
       renderKV([
         ['Total ACUs', result.totalAcus.toFixed(2)],
         ['Cycle limit (local)', result.localLimit],
+        ['Billing org', await formatBillingOrg(orgRegistry, result.billingOrgId)],
       ]);
 
       if (result.cycles.length > 0) {

@@ -4,4 +4,5 @@ export interface IOrgRegistry {
   get(refresh?: boolean): Promise<Organization[]>;
   refresh(): Promise<Organization[]>;
   resolve(nameOrId: string): Promise<Organization>;
+  resolveName(orgId: string): Promise<string | undefined>;
 }
