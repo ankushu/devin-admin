@@ -27,7 +27,7 @@ export function monitorCommand(): Command {
 
       if (isJson) return renderJson(result);
 
-      const limit = result.cloudLimit ?? result.localLimit;
+      const limit = result.localLimit;
       console.log(`\nOrg: ${result.orgName} (${result.orgId})`);
       console.log(`Period: ${formatPeriodLabel(result.month)}`);
       console.log('\n  (Enterprise-wide consumption — no per-org filter available in API)\n');

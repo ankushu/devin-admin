@@ -33,6 +33,16 @@ function makeAcuApi(): AcuLimitsApi {
   } as unknown as AcuLimitsApi;
 }
 
+function makeZeroCloudAcuApi(): AcuLimitsApi {
+  return {
+    getOrg: vi.fn().mockResolvedValue({
+      cloud_agent: { cycle_acu_limit: 0 },
+      local_agent: { cycle_acu_limit: 500 },
+    } as OrgAcuLimitResponse),
+    getUser: vi.fn().mockResolvedValue({ local_agent: { cycle_acu_limit: 500 } } as UserAcuLimitResponse),
+  } as unknown as AcuLimitsApi;
+}
+
 function makeRegistry(): OrgRegistry {
   return { resolve: vi.fn().mockResolvedValue(ORG) } as unknown as OrgRegistry;
 }
@@ -85,6 +95,19 @@ describe('MonitoringService', () => {
       expect(result.byProduct.terminal).toBe(80);
     });
 
+    it('surfaces both cloud and local limits when the cloud limit is zero', async () => {
+      const svc2 = new MonitoringService(
+        makeConsumptionApi(),
+        makeZeroCloudAcuApi(),
+        makeRegistry(),
+        makeUserResolver(),
+        makeMembersApi()
+      );
+      const result = await svc2.monitorOrg('Alpha', '2026-06');
+      expect(result.cloudLimit).toBe(0);
+      expect(result.localLimit).toBe(500);
+    });
+
     it('surfaces org cloud limit', async () => {
       const result = await svc.monitorOrg('Alpha', '2026-06');
       expect(result.cloudLimit).toBe(1000);
@@ -98,6 +121,26 @@ describe('MonitoringService', () => {
         acus: 100,
         byProduct: { devin: 60, cascade: 40 },
       });
+    });
+  });
+
+  describe('monitorAllOrgs', () => {
+    it('uses the local limit when the cloud limit is zero', async () => {
+      const registry = {
+        get: vi.fn().mockResolvedValue([ORG]),
+      } as unknown as OrgRegistry;
+      const svc2 = new MonitoringService(
+        makeConsumptionApi(),
+        makeZeroCloudAcuApi(),
+        registry,
+        makeUserResolver(),
+        makeMembersApi()
+      );
+
+      const result = await svc2.monitorAllOrgs('2026-06');
+
+      expect(result.orgs).toHaveLength(1);
+      expect(result.orgs[0].limit).toBe(500);
     });
   });
 
