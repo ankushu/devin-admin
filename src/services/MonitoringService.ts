@@ -176,7 +176,7 @@ export class MonitoringService {
             ]);
 
             const { total, byProduct } = aggregate(consumption.consumption_by_date);
-            const effectiveLimit = limit.cloud_agent?.cycle_acu_limit ?? limit.local_agent?.cycle_acu_limit;
+            const effectiveLimit = limit.local_agent?.cycle_acu_limit;
 
             return {
               orgId: org.org_id,
